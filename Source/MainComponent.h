@@ -20,10 +20,20 @@ private:
     AudioEngine audioEngine;
     std::unique_ptr<juce::AudioDeviceSelectorComponent> deviceSelector;
 
+    // UI components
     juce::Label titleLabel;
+
+    // Delay controls
+    juce::Label delayLabel;
+    juce::Slider delaySlider;
+    juce::Label delayValueLabel;
+
+    // Gain controls
     juce::Label gainLabel;
     juce::Slider gainSlider;
     juce::Label gainValueLabel;
+
+    // Device status labels
     juce::Label deviceTypeLabel;
     juce::Label deviceNameLabel;
     juce::Label deviceFormatLabel;
@@ -34,6 +44,6 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void updateDeviceLabels();
     void updateGainReadout();
-
+    void updateDelayReadout();
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

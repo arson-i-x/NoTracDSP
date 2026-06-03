@@ -44,3 +44,5 @@ target_link_libraries (NoTracDSP
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+target_compile_definitions(NoTracDSP PUBLIC JUCE_ASIO=1)

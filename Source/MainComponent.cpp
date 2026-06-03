@@ -11,11 +11,11 @@ MainComponent::MainComponent()
     titleLabel.setColour (juce::Label::textColourId, juce::Colour (0xfff4f7fb));
     addAndMakeVisible (titleLabel);
 
+    // Gain UI
     gainLabel.setText ("Master Gain", juce::dontSendNotification);
     gainLabel.setJustificationType (juce::Justification::centredLeft);
     gainLabel.setColour (juce::Label::textColourId, juce::Colour (0xffc7d0db));
     addAndMakeVisible (gainLabel);
-
     gainSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 88, 24);
     gainSlider.setRange (0.0, 2.0, 0.001);
@@ -26,11 +26,32 @@ MainComponent::MainComponent()
         updateGainReadout();
     };
     addAndMakeVisible (gainSlider);
-
     gainValueLabel.setJustificationType (juce::Justification::centredRight);
     gainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8bd3ff));
     addAndMakeVisible (gainValueLabel);
 
+    // Delay UI
+    delayLabel.setText ("Delay Time", juce::dontSendNotification);
+    delayLabel.setJustificationType (juce::Justification::centredLeft);
+    delayLabel.setColour (juce::Label::textColourId, juce::Colour (0xffc7d0db));
+    addAndMakeVisible (delayLabel);
+
+    delaySlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    delaySlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 88, 24);
+    delaySlider.setRange (0.0, 2000.0, 1.0);
+    delaySlider.setValue (1000.0);
+    delaySlider.onValueChange = [this]
+    {
+        audioEngine.setDelayTimeMs ((float) delaySlider.getValue());
+        updateDelayReadout();
+    };
+    addAndMakeVisible (delaySlider);
+    
+    delayValueLabel.setJustificationType (juce::Justification::centredRight);
+    delayValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8bd3ff));
+    addAndMakeVisible (delayValueLabel);
+
+    // Device status UI
     deviceTypeLabel.setJustificationType (juce::Justification::centredLeft);
     deviceNameLabel.setJustificationType (juce::Justification::centredLeft);
     deviceFormatLabel.setJustificationType (juce::Justification::centredLeft);
@@ -62,6 +83,7 @@ MainComponent::MainComponent()
 
     updateDeviceLabels();
     updateGainReadout();
+    updateDelayReadout();
     setSize (1100, 760);
 }
 
@@ -89,12 +111,9 @@ void MainComponent::paint (juce::Graphics& g)
 void MainComponent::resized()
 {
     auto area = getLocalBounds().reduced (28);
-    auto header = area.removeFromTop (72);
+    auto titleArea = area.removeFromTop (48);
 
-    titleLabel.setBounds (header.removeFromLeft (360));
-    gainValueLabel.setBounds (header.removeFromRight (96));
-    gainLabel.setBounds (header.removeFromTop (22));
-    gainSlider.setBounds (header.reduced (0, 6));
+    titleLabel.setBounds (titleArea);
 
     area.removeFromTop (8);
 
@@ -115,6 +134,20 @@ void MainComponent::resized()
     deviceStatusLabel.setBounds (row);
 
     deviceSelector->setBounds (rightColumn);
+
+    // create an area below the device status labels for the delay and gain controls
+    auto controlArea = getLocalBounds().reduced (64).removeFromBottom (256);
+
+    auto delayArea = controlArea.removeFromTop (48);
+
+    delayLabel.setBounds (delayArea.removeFromLeft (150));
+    delaySlider.setBounds (delayArea.removeFromLeft (200));
+    delayValueLabel.setBounds (delayArea.removeFromLeft (80));
+
+    auto gainArea = controlArea.removeFromTop (48);
+    gainLabel.setBounds (gainArea.removeFromLeft (150));
+    gainSlider.setBounds (gainArea.removeFromLeft (200));
+    gainValueLabel.setBounds (gainArea.removeFromLeft (80));
 }
 
 void MainComponent::changeListenerCallback (juce::ChangeBroadcaster*)
@@ -137,4 +170,9 @@ void MainComponent::updateDeviceLabels()
 void MainComponent::updateGainReadout()
 {
     gainValueLabel.setText (juce::String (gainSlider.getValue(), 2) + "x", juce::dontSendNotification);
+}
+
+void MainComponent::updateDelayReadout()
+{
+    delayValueLabel.setText (juce::String (delaySlider.getValue(), 2) + " ms", juce::dontSendNotification);
 }

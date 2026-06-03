@@ -29,6 +29,11 @@ void AudioEngine::setMasterGain (float newGain) noexcept
     gainProcessor.setGain (newGain);
 }
 
+void AudioEngine::setDelayTimeMs (float ms) noexcept
+{
+    delayProcessor.setDelayTimeMs (ms);
+}
+
 void AudioEngine::addStatusListener (juce::ChangeListener* listener)
 {
     addChangeListener (listener);

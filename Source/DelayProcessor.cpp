@@ -22,20 +22,23 @@ void DelayProcessor::process (juce::AudioBuffer<float>& buffer) noexcept
         static_cast<int>(
             sampleRateHz * delayMs.load() / 1000.0f);
 
+    if (delaySamples <= 0 || delaySamples >= delayBuffer.getNumSamples())
+        return; // Invalid delay time, do nothing.
 
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
         {
+            // get pointers to the current channel data in the input buffer and the delay buffer
             auto* channelData = buffer.getWritePointer (channel);
             auto* delayData = delayBuffer.getWritePointer (channel);
 
-            // calculate the read position for the delayed sample 
-            int readPosition = writePosition - delaySamples;
-
-            // wrap around the read position if it's negative, so it correctly reads from the end of the delay buffer
-            if (readPosition < 0)
-                readPosition += delayBuffer.getNumSamples();
+            // calculate the read position in the delay buffer, wrapping around if necessary
+            int readPosition =
+                (writePosition
+                - delaySamples
+                + delayBuffer.getNumSamples())
+                % delayBuffer.getNumSamples();
 
             // read the delayed sample from the delay buffer at the calculated read position
             const auto delayedSample = delayData[readPosition];

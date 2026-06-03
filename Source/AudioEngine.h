@@ -28,6 +28,7 @@ public:
     const juce::AudioDeviceManager& getAudioDeviceManager() const noexcept { return audioDeviceManager; }
 
     void setMasterGain (float newGain) noexcept;
+    void setDelayTimeMs (float ms) noexcept;
 
     [[nodiscard]] DeviceStatus getDeviceStatus() const noexcept;
 
