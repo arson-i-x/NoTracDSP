@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GainProcessor.h"
-
+#include "DelayProcessor.h"
 #include <atomic>
 #include <juce_audio_devices/juce_audio_devices.h>
 
@@ -46,6 +46,7 @@ public:
 private:
     juce::AudioDeviceManager audioDeviceManager;
     GainProcessor gainProcessor;
+    DelayProcessor delayProcessor;
     DeviceStatus deviceStatus;
 
     void changeListenerCallback (juce::ChangeBroadcaster*) override;

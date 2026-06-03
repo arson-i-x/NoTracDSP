@@ -1,11 +1,12 @@
 #include "MainComponent.h"
 
-const juce::String JUCE_APPLICATION_NAME_STRING = "QuadCore Prototype";
-const juce::String JUCE_APPLICATION_VERSION_STRING = "0.1.0";
-
 class QuadCorePrototypeApplication final : public juce::JUCEApplication
 {
 public:
+    // const juce::String JUCE_APPLICATION_NAME_STRING = "QuadCore Prototype";
+    // const juce::String JUCE_APPLICATION_VERSION_STRING = "0.1.0";
+
+    // Use these two methods to retrieve the name and version of your application from CMakeLists.txt
     const juce::String getApplicationName() override       { return JUCE_APPLICATION_NAME_STRING; }
     const juce::String getApplicationVersion() override    { return JUCE_APPLICATION_VERSION_STRING; }
     bool moreThanOneInstanceAllowed() override             { return true; }
@@ -26,31 +27,32 @@ public:
         quit();
     }
 
-    class MainWindow final : public juce::DocumentWindow
-    {
-    public:
-        explicit MainWindow (juce::String name)
-            : juce::DocumentWindow (name,
-                                     juce::Desktop::getInstance().getDefaultLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId),
-                                     allButtons)
-        {
-            setUsingNativeTitleBar (true);
-            setContentOwned (new MainComponent(), true);
+    class MainWindow final : public juce::DocumentWindow {
+        public:
+            explicit MainWindow (juce::String name)
+                : juce::DocumentWindow (name,
+                                        juce::Desktop::getInstance().getDefaultLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId),
+                                        allButtons)
+            {
+                setUsingNativeTitleBar (false);
 
-           #if JUCE_IOS || JUCE_ANDROID
-            setFullScreen (true);
-           #else
-            setResizable (true, true);
-            centreWithSize (getWidth(), getHeight());
-           #endif
+                // Add the main content component to the window, and make it resize with window resizing.
+                setContentOwned (new MainComponent(), true);
 
-            setVisible (true);
-        }
+            #if JUCE_IOS || JUCE_ANDROID
+                setFullScreen (true);
+            #else
+                setResizable (true, true);
+                centreWithSize (getWidth(), getHeight());
+            #endif
+                // set the window to be visible, so the user can interact with it.
+                setVisible (true);
+            }
 
-        void closeButtonPressed() override
-        {
-            juce::JUCEApplication::getInstance()->systemRequestedQuit();
-        }
+            void closeButtonPressed() override
+            {
+                juce::JUCEApplication::getInstance()->systemRequestedQuit();
+            }
     };
 
 private:

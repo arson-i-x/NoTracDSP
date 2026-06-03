@@ -19,14 +19,14 @@ AudioEngine::~AudioEngine()
     audioDeviceManager.removeChangeListener (this);
 }
 
-void AudioEngine::setMasterGain (float newGain) noexcept
-{
-    gainProcessor.setGain (newGain);
-}
-
 AudioEngine::DeviceStatus AudioEngine::getDeviceStatus() const noexcept
 {
     return deviceStatus;
+}
+
+void AudioEngine::setMasterGain (float newGain) noexcept
+{
+    gainProcessor.setGain (newGain);
 }
 
 void AudioEngine::addStatusListener (juce::ChangeListener* listener)
@@ -47,12 +47,14 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
                                                : 1;
 
     gainProcessor.prepare (sampleRate, blockSize, numChannels);
+    delayProcessor.prepare (sampleRate, blockSize, numChannels);
     refreshDeviceStatus();
 }
 
 void AudioEngine::audioDeviceStopped()
 {
     gainProcessor.prepare (0.0, 0, 0);
+    delayProcessor.prepare (0.0, 0, 0);
 }
 
 void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
@@ -67,36 +69,51 @@ void AudioEngine::audioDeviceIOCallbackWithContext (const float* const* inputCha
     // Real-time audio thread: no locks, no allocations, no blocking work.
     const auto channelsToCopy = juce::jmin (numInputChannels, numOutputChannels);
 
+    // Copy input channels to output channels, clearing any output channels that don't have an input.
     for (int channel = 0; channel < channelsToCopy; ++channel)
     {
         auto* output = outputChannelData[channel];
         const auto* input = inputChannelData[channel];
 
+        // If the output is null, we have nowhere to copy the input data to, so skip this channel.
         if (output == nullptr)
             continue;
 
+        // If the input is null, we have no data to copy, so clear the output buffer to avoid noise.
         if (input != nullptr)
             juce::FloatVectorOperations::copy (output, input, numSamples);
         else
             juce::FloatVectorOperations::clear (output, numSamples);
     }
 
+    // Fill any remaining output channels with copies of the first input channel (or silence if no inputs are active).
     for (int channel = channelsToCopy; channel < numOutputChannels; ++channel)
     {
         auto* output = outputChannelData[channel];
 
+        // If the output is null, we have nowhere to copy the input data to, so skip this channel.
         if (output == nullptr)
             continue;
 
+        // If we have at least one input channel with data, copy the first input channel to the remaining output channels. 
         if (numInputChannels > 0 && inputChannelData[0] != nullptr)
             juce::FloatVectorOperations::copy (output, inputChannelData[0], numSamples);
+        // Otherwise, clear the output buffer to avoid noise.
         else
             juce::FloatVectorOperations::clear (output, numSamples);
     }
 
+    // Create a non-const pointer to the output channel data so we can wrap it in an AudioBuffer without copying.
     auto** mutableOutputData = const_cast<float**> (outputChannelData);
+
+    // This creates an AudioBuffer that wraps the output channel data without copying it, allowing us to apply the gain processor directly to the output buffer.
     juce::AudioBuffer<float> outputBuffer { mutableOutputData, numOutputChannels, numSamples };
+
+    // Apply the gain processor to the output buffer in-place.
     gainProcessor.process (outputBuffer);
+
+    // Apply the delay processor to the output buffer in-place.
+    delayProcessor.process (outputBuffer);
 }
 
 void AudioEngine::changeListenerCallback (juce::ChangeBroadcaster*)
