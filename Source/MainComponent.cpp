@@ -11,7 +11,62 @@ MainComponent::MainComponent()
     titleLabel.setColour (juce::Label::textColourId, juce::Colour (0xfff4f7fb));
     addAndMakeVisible (titleLabel);
 
-    // Gain UI
+    addAndMakeVisible (settingsOverlay);
+    settingsOverlay.setVisible (false);
+    settingsOverlay.onSwitchSelected =
+    [this](int switchNumber)
+    {
+        auto target = settingsOverlay.getTargetNodeId();
+
+        if (!target.has_value())
+            return;
+
+        MidiTrigger trigger = midiTriggerForSoftwareSwitch(switchNumber);
+
+        midiMappingManager.mapTriggerToBypass(trigger, *target);
+
+        DBG("Mapped switch "
+            + juce::String(switchNumber)
+            + " to plugin node "
+            + juce::String(target->uid));
+    };
+
+    createMasterGainUI();
+
+    createCustomFXUI();
+
+    createDeviceStatusUI();
+
+    createDeviceSelectorUI();
+
+    createPluginListButton();
+
+    createPluginGraphViewWithCallbacks();
+
+    audioEngine.addStatusListener (this);
+
+    openFirstMidiInput();
+
+    updateDeviceLabels();
+
+    updateGainReadout();
+
+    updateDelayReadout();
+
+    setSize (1200, 800);
+}
+
+MidiTrigger MainComponent::midiTriggerForSoftwareSwitch(int switchNumber)
+{
+    return MidiTrigger {
+        MidiTriggerType::cc,
+        1,
+        19 + switchNumber
+    };
+}
+
+void MainComponent::createMasterGainUI()
+{
     gainLabel.setText ("Master Gain", juce::dontSendNotification);
     gainLabel.setJustificationType (juce::Justification::centredLeft);
     gainLabel.setColour (juce::Label::textColourId, juce::Colour (0xffc7d0db));
@@ -29,29 +84,10 @@ MainComponent::MainComponent()
     gainValueLabel.setJustificationType (juce::Justification::centredRight);
     gainValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8bd3ff));
     addAndMakeVisible (gainValueLabel);
+}
 
-    // Delay UI
-    delayLabel.setText ("Delay Time", juce::dontSendNotification);
-    delayLabel.setJustificationType (juce::Justification::centredLeft);
-    delayLabel.setColour (juce::Label::textColourId, juce::Colour (0xffc7d0db));
-    addAndMakeVisible (delayLabel);
-
-    delaySlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    delaySlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 88, 24);
-    delaySlider.setRange (0.0, 2000.0, 1.0);
-    delaySlider.setValue (1000.0);
-    delaySlider.onValueChange = [this]
-    {
-        audioEngine.setDelayTimeMs ((float) delaySlider.getValue());
-        updateDelayReadout();
-    };
-    addAndMakeVisible (delaySlider);
-    
-    delayValueLabel.setJustificationType (juce::Justification::centredRight);
-    delayValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8bd3ff));
-    addAndMakeVisible (delayValueLabel);
-
-    // Device status UI
+void MainComponent::createDeviceStatusUI()
+{
     deviceTypeLabel.setJustificationType (juce::Justification::centredLeft);
     deviceNameLabel.setJustificationType (juce::Justification::centredLeft);
     deviceFormatLabel.setJustificationType (juce::Justification::centredLeft);
@@ -64,7 +100,119 @@ MainComponent::MainComponent()
         label->setColour (juce::Label::textColourId, juce::Colour (0xffdbe4ee));
         addAndMakeVisible (label);
     }
+}
 
+void MainComponent::createCustomFXUI() 
+{
+    delayTimeLabel.setText ("Delay Time", juce::dontSendNotification);
+    delayTimeLabel.setJustificationType (juce::Justification::centredLeft);
+    delayTimeLabel.setColour (juce::Label::textColourId, juce::Colour (0xffc7d0db));
+    addAndMakeVisible (delayTimeLabel);
+    delayTimeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    delayTimeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 88, 24);
+    delayTimeSlider.setRange (0.0, 2000.0, 1.0);
+    delayTimeSlider.setValue (1000.0);
+    delayTimeSlider.onValueChange = [this]
+    {
+        audioEngine.setDelayTimeMs ((float) delayTimeSlider.getValue());
+        updateDelayReadout();
+    };
+    addAndMakeVisible (delayTimeSlider);
+    delayTimeValueLabel.setJustificationType (juce::Justification::centredRight);
+    delayTimeValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8bd3ff));
+    addAndMakeVisible (delayTimeValueLabel);
+
+    delayMixLabel.setText ("Delay Mix", juce::dontSendNotification);
+    delayMixLabel.setJustificationType (juce::Justification::centredLeft);
+    delayMixLabel.setColour (juce::Label::textColourId, juce::Colour (0xffc7d0db));
+    addAndMakeVisible (delayMixLabel);
+    delayMixSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    delayMixSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 88, 24);
+    delayMixSlider.setRange (0.0, 1.0, 0.001);
+    delayMixSlider.setValue (0.5);
+    delayMixSlider.onValueChange = [this]
+    {
+        audioEngine.setDelayMix ((float) delayMixSlider.getValue());
+        updateDelayReadout();
+    };
+    addAndMakeVisible (delayMixSlider);
+    delayMixValueLabel.setJustificationType (juce::Justification::centredRight);
+    delayMixValueLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8bd3ff));
+    addAndMakeVisible (delayMixValueLabel);
+}
+
+void MainComponent::createPluginListButton()
+{
+    openPluginListWindow.setButtonText ("Load Plugins");
+    openPluginListWindow.onClick = [this]
+    {
+        pluginListWindow = std::make_unique<PluginListWindow>();
+
+        if (auto* pluginListBox = pluginListWindow->getPluginListBox())
+        {
+            pluginListBox->onPluginChosen = [this, pluginListBox](const juce::PluginDescription &desc)
+            {
+                if (desc.numInputChannels <= 0)
+                {
+                    DBG("Skipping plugin with no audio inputs: " + desc.name);
+                    return;
+                }
+                auto node = audioEngine.addPlugin(
+                    desc,
+                    pluginListBox->getPluginFormatManager());
+
+                if (node == nullptr)
+                    return;
+
+                refreshGraphView();
+
+                DBG("Added plugin: " + node->getProcessor()->getName());
+                DBG("Inputs: " + juce::String(node->getProcessor()->getTotalNumInputChannels()));
+                DBG("Outputs: " + juce::String(node->getProcessor()->getTotalNumOutputChannels()));
+            };
+        }
+    };
+    addAndMakeVisible (openPluginListWindow);
+}
+
+void MainComponent::createPluginGraphViewWithCallbacks() 
+{
+    addAndMakeVisible (pluginGraphViewComponent);
+
+    pluginGraphViewComponent.onPluginDoubleClicked =
+    [this](juce::AudioProcessorGraph::NodeID nodeId)
+    {
+        showPluginWindow(nodeId);
+    };
+    pluginGraphViewComponent.onOrderChanged =
+    [this](const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder)
+    {
+        audioEngine.setPluginOrder(newOrder);
+        refreshGraphView();
+    };
+    pluginGraphViewComponent.onPluginBypassed =
+    [this](juce::AudioProcessorGraph::NodeID nodeId)
+    {
+        audioEngine.toggleBypass(nodeId);
+        refreshGraphView();
+    };
+    pluginGraphViewComponent.onPluginRemoved =
+    [this](juce::AudioProcessorGraph::NodeID nodeId)
+    {
+        pluginWindows.erase(nodeId);      // destroy editor first
+        audioEngine.removePlugin(nodeId); // remove graph node
+        refreshGraphView();
+    };
+    pluginGraphViewComponent.onMidiMapRequested =
+    [this](juce::AudioProcessorGraph::NodeID nodeId)
+    {
+        auto name = audioEngine.getPluginName(nodeId);
+        settingsOverlay.openForPlugin(nodeId, name);
+    };
+}
+
+void MainComponent::createDeviceSelectorUI()
+{
     deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent> (audioEngine.getAudioDeviceManager(),
                                                                            2,
                                                                            256,
@@ -78,18 +226,122 @@ MainComponent::MainComponent()
     deviceSelector->setColour (juce::TextButton::buttonColourId, juce::Colour (0xff243041));
     deviceSelector->setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xff3f536d));
     addAndMakeVisible (deviceSelector.get());
-
-    audioEngine.addStatusListener (this);
-
-    updateDeviceLabels();
-    updateGainReadout();
-    updateDelayReadout();
-    setSize (1100, 760);
 }
 
 MainComponent::~MainComponent()
 {
     audioEngine.removeStatusListener (this);
+    deviceSelector.reset();
+    pluginListWindow.reset();
+    pluginWindows.clear();
+}
+
+void MainComponent::openFirstMidiInput()
+{
+    auto devices = juce::MidiInput::getAvailableDevices();
+
+    if (devices.isEmpty())
+    {
+        DBG("No MIDI input devices found.");
+        return;
+    }
+
+    // For now: use first available MIDI input.
+    // Later, expose this in SettingsOverlayComponent.
+    auto device = devices[0];
+
+    midiInput = juce::MidiInput::openDevice(device.identifier, this);
+
+    if (midiInput == nullptr)
+    {
+        DBG("Failed to open MIDI input: " + device.name);
+        return;
+    }
+
+    midiInput->start();
+
+    DBG("Opened MIDI input: " + device.name);
+}
+
+// void MainComponent::showGraphView()
+// {
+//     pluginGraphViewComponent = std::make_unique<PluginGraphViewComponent>();
+//     pluginGraphViewComponent->setVisible(true);
+//     pluginGraphViewComponent->onPluginDoubleClicked =
+//     [this](juce::AudioProcessorGraph::NodeID nodeId)
+//     {
+//         showPluginWindow(nodeId);
+//     };
+// }
+
+// void MainComponent::hideGraphView()
+// {
+//     pluginGraphViewComponent.reset();
+// }
+
+void MainComponent::refreshGraphView()
+{
+    auto activePlugins = audioEngine.getActivePlugins();
+
+    DBG("Refreshing graph view with " + juce::String(activePlugins.size()) + " active plugins.");
+
+    std::vector<PluginGraphItem> items;
+
+    int x = 40;
+    int y = 80;
+    int width = 140;
+    int height = 60;
+    int gap = 50;
+
+    DBG("Active plugins:");
+    DBG("Name | Bypassed");
+    DBG("-------------------");
+
+    for (const auto& plugin : activePlugins)
+    {
+        items.push_back({
+            plugin.nodeId,
+            plugin.name,
+            juce::Rectangle<int>(x, y, width, height),
+            juce::Rectangle<int>(x + width - 20, y, 20, 20), // remove button bounds
+            plugin.bypassed
+        });
+
+        DBG("Plugin: " + plugin.name + ", Bypassed: " + (plugin.bypassed ? "Yes" : "No") + ")");
+
+        x += width + gap;
+    }
+
+    pluginGraphViewComponent.setPlugins(items);
+}
+
+void MainComponent::removePlugin(juce::AudioProcessorGraph::NodeID nodeId)
+{
+    // 1. Destroy editor/window first
+    pluginWindows.erase(nodeId);
+
+    // 2. Then remove plugin from graph
+    audioEngine.removePlugin(nodeId);
+}
+
+void MainComponent::showPluginWindow(juce::AudioProcessorGraph::NodeID nodeId)
+{
+    if (auto it = pluginWindows.find(nodeId); it != pluginWindows.end())
+    {
+        it->second->setVisible(true);
+        it->second->toFront(true);
+        return;
+    }
+
+    if (auto* processor = audioEngine.getProcessorForNode(nodeId))
+    {
+        pluginWindows[nodeId].reset();
+        pluginWindows[nodeId] =
+            std::make_unique<PluginWindow>(processor);
+
+        pluginWindows[nodeId]->setVisible(true);
+        pluginWindows[nodeId]->toFront(true);
+    }
 }
 
 void MainComponent::paint (juce::Graphics& g)
@@ -117,6 +369,38 @@ void MainComponent::resized()
 
     area.removeFromTop (8);
 
+    deviceSelector->setBounds (area.removeFromTop (100));
+
+    area.removeFromTop (12);
+
+    auto addPluginButtonArea = area.removeFromTop (32);
+    openPluginListWindow.setBounds (addPluginButtonArea);
+
+    // auto showPluginGraphViewButtonArea = area.removeFromTop (32);
+    // showPluginGraphViewButton.setBounds (showPluginGraphViewButtonArea);
+
+    // create an area below the device status labels for the delay and gain controls
+    auto controlArea = area.removeFromTop (250);
+    pluginGraphViewComponent.setBounds (controlArea);
+
+    // auto delayTimeArea = controlArea.removeFromTop (48);
+    // delayTimeLabel.setBounds (delayTimeArea.removeFromLeft (150));
+    // delayTimeSlider.setBounds (delayTimeArea.removeFromLeft (200));
+    // delayTimeValueLabel.setBounds (delayTimeArea.removeFromLeft (80));
+
+    // auto delayMixArea = controlArea.removeFromTop (48);
+    // delayMixLabel.setBounds (delayMixArea.removeFromLeft (150));
+    // delayMixSlider.setBounds (delayMixArea.removeFromLeft (200));
+    // delayMixValueLabel.setBounds (delayMixArea.removeFromLeft (80));
+
+    // auto gainArea = controlArea.removeFromTop (48);
+    // gainLabel.setBounds (gainArea.removeFromLeft (150));
+    // gainSlider.setBounds (gainArea.removeFromLeft (200));
+    // gainValueLabel.setBounds (gainArea.removeFromLeft (80));
+
+    settingsOverlay.setBounds(getLocalBounds());
+    settingsOverlay.toFront(false);
+
     auto leftColumn = area.removeFromLeft (330);
     auto rightColumn = area;
 
@@ -134,20 +418,6 @@ void MainComponent::resized()
     deviceStatusLabel.setBounds (row);
 
     deviceSelector->setBounds (rightColumn);
-
-    // create an area below the device status labels for the delay and gain controls
-    auto controlArea = getLocalBounds().reduced (64).removeFromBottom (256);
-
-    auto delayArea = controlArea.removeFromTop (48);
-
-    delayLabel.setBounds (delayArea.removeFromLeft (150));
-    delaySlider.setBounds (delayArea.removeFromLeft (200));
-    delayValueLabel.setBounds (delayArea.removeFromLeft (80));
-
-    auto gainArea = controlArea.removeFromTop (48);
-    gainLabel.setBounds (gainArea.removeFromLeft (150));
-    gainSlider.setBounds (gainArea.removeFromLeft (200));
-    gainValueLabel.setBounds (gainArea.removeFromLeft (80));
 }
 
 void MainComponent::changeListenerCallback (juce::ChangeBroadcaster*)
@@ -174,5 +444,41 @@ void MainComponent::updateGainReadout()
 
 void MainComponent::updateDelayReadout()
 {
-    delayValueLabel.setText (juce::String (delaySlider.getValue(), 2) + " ms", juce::dontSendNotification);
+    delayTimeValueLabel.setText (juce::String (delayTimeSlider.getValue(), 2) + " ms", juce::dontSendNotification);
+    delayMixValueLabel.setText (juce::String (delayMixSlider.getValue(), 2) + " %", juce::dontSendNotification);
+}
+
+void MainComponent::startMidiLearnForPlugin(juce::AudioProcessorGraph::NodeID nodeId)
+{
+    midiLearnTarget = nodeId;
+    DBG("MIDI learn armed for node: " + juce::String(nodeId.uid));
+}
+
+void MainComponent::handleIncomingMidiMessage(juce::MidiInput*,
+                                              const juce::MidiMessage& message)
+{
+    if (midiLearnTarget.has_value())
+    {
+        auto trigger = MidiMappingManager::triggerFromMessage(message);
+
+        if (trigger.has_value())
+        {
+            midiMappingManager.mapTriggerToBypass(*trigger, *midiLearnTarget);
+            DBG("MIDI learn mapped trigger to plugin.");
+
+            midiLearnTarget.reset();
+            return;
+        }
+    }
+
+    auto action = midiMappingManager.getActionForMessage(message);
+
+    if (!action.has_value())
+        return;
+
+    if (action->actionType == MidiActionType::toggleBypass)
+    {
+        audioEngine.toggleBypass(action->nodeId);
+        refreshGraphView();
+    }
 }

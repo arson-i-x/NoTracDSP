@@ -4,20 +4,25 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
-// TODO: delay processor
+#include "AudioProcessorBase.h"
+
 // TODO: audio routing graph
 // TODO: plugin hosting (VST3/LV2)
 // TODO: preset system
 // TODO: touchscreen UI
 
-class GainProcessor final
+class GainProcessor final : public AudioProcessorBase
 {
 public:
-    void prepare (double newSampleRate, int newBlockSize, int newNumChannels) noexcept;
+    void prepare (double newSampleRate, int newBlockSize, int newNumChannels) noexcept {
+        sampleRateHz = newSampleRate;
+        blockSizeSamples = newBlockSize;
+        numChannels = newNumChannels;
+    };
 
-    void process (juce::AudioBuffer<float>& buffer) noexcept;
+    void process (juce::AudioBuffer<float>& buffer) noexcept { buffer.applyGain (gain.load (std::memory_order_relaxed)); };
 
-    void setGain (float newGain) noexcept;
+    void setGain (float newGain) noexcept { gain.store (newGain, std::memory_order_relaxed); };
 
 private:
     double sampleRateHz = 0.0;

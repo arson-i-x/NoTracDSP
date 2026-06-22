@@ -9,7 +9,7 @@
       "stopAtEntry": false,
       "externalConsole": true,
       "cwd": "c:/Users/darka/OneDrive/Documents/NoTracDSP/Source",
-      "program": "c:/Users/darka/OneDrive/Documents/NoTracDSP/Source/build/Debug/outDebug",
+      "program": "c:/Users/darka/OneDrive/Documents/NoTracDSP/build/NoTracDSP_artefacts/Debug/NoTrac DSP Prototype.exe",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
@@ -19,6 +19,16 @@
           "ignoreFailures": true
         }
       ]
+    },
+    {
+      "name": "Launch NoTracDSP (Debug)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "c:/Users/darka/OneDrive/Documents/NoTracDSP/build/NoTracDSP_artefacts/Debug/NoTrac DSP Prototype.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
     }
   ]
 }

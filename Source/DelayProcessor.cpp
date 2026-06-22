@@ -22,6 +22,8 @@ void DelayProcessor::process (juce::AudioBuffer<float>& buffer) noexcept
         static_cast<int>(
             sampleRateHz * delayMs.load() / 1000.0f);
 
+    const auto mix = wetMix.load();
+
     if (delaySamples <= 0 || delaySamples >= delayBuffer.getNumSamples())
         return; // Invalid delay time, do nothing.
 
@@ -47,7 +49,7 @@ void DelayProcessor::process (juce::AudioBuffer<float>& buffer) noexcept
             const auto inputSample = channelData[sample];
 
             // output delayed sample to output buffer
-            channelData[sample] = delayedSample;
+            channelData[sample] = delayedSample * mix + inputSample * (1.0f - mix); // mix delayed sample with current input sample
 
             // write current input sample to delay buffer at current write position
             delayData[writePosition] = inputSample;
@@ -56,8 +58,3 @@ void DelayProcessor::process (juce::AudioBuffer<float>& buffer) noexcept
         if (++writePosition >= delayBuffer.getNumSamples()) writePosition = 0;
     }    
 }  
-
-void DelayProcessor::setDelayTimeMs(float ms)
-{
-    delayMs.store(ms, std::memory_order_relaxed);
-}

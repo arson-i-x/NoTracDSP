@@ -1,0 +1,75 @@
+#pragma once
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <iostream>
+#include <filesystem>
+#include <string>
+
+class PluginScannerCoordinator : public juce::ChildProcessCoordinator
+{
+public:
+
+    // Core plugin listing states
+    juce::KnownPluginList knownPluginList;
+    juce::AudioPluginFormatManager formatManager;
+
+    // Target tracking locations
+    juce::File deadMansPedalFile;
+    juce::File knownPluginsFile;
+    juce::File workerScanXmlFile;
+
+    // Define structural settings structures
+    struct ScanSettings
+    {
+        juce::File directory;
+        bool recursive = true;
+        bool dontRescanIfAlreadyInList = true;
+        bool allowAsyncInstantiation = false;
+    };
+
+    // Callback types for updating UI component layers
+    using ButtonStateFn = std::function<void(const juce::String& text, bool enabled)>;
+
+    PluginScannerCoordinator();
+    ~PluginScannerCoordinator() override = default;
+
+    // Kicks off the asynchronous queue loop
+    void startScan(ScanSettings& settings, ButtonStateFn cb);
+    
+    // Saves and manages tracking lists
+    void saveKnownPluginList();
+
+private:
+
+    // JUCE ChildProcessCoordinator overrides
+    void handleMessageFromWorker(const juce::MemoryBlock& mb) override;
+    void handleConnectionLost() override;
+    // Processing management steps
+    void scanNextItemInQueue();
+    bool launchWorker();
+    bool sendSettingsToWorker();
+    bool workerIsStillRunning() const;
+    void markPluginAsFailed(const juce::String& pluginPath);
+    void setUi(const juce::String& text, bool enabled);
+    void finish();
+    void scheduleNextScan();
+
+    // Constant tracking identifiers
+    static constexpr const char* kIPC = "NoTracDSPVST3Scan";
+
+    // Asynchronous file tracking loop variables
+    juce::Array<juce::File> filesToScan;
+    size_t currentFileIndex = 0;
+    juce::File currentFile;
+    ScanSettings pendingSettings;
+    
+    bool workerReportedDone = false;
+
+    // UI state preservation functions
+    ButtonStateFn onButtonState;
+
+    juce::String currentlyScanningPlugin;
+    bool scanTimedOut = false;
+    bool knownPluginListDirty = false;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginScannerCoordinator)
+};
