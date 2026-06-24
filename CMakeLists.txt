@@ -16,17 +16,37 @@ juce_add_gui_app (NoTracDSP
 
 target_sources (NoTracDSP
     PRIVATE
+        # this is the main entry point for the application
         Source/Main.cpp
-        Source/MainComponent.cpp
-        Source/AudioEngine.cpp
-        Source/DelayProcessor.cpp
-        Source/PluginScannerCoordinator.cpp
-        Source/PluginListBox.cpp
+
+        # core source files
+        Source/core/AudioEngine.cpp        
+        Source/core/DirectoryManager.cpp
+
+        # command source files
+        Source/commands/AddPluginCommand.cpp
+        Source/commands/RemovePluginCommand.cpp
+        Source/commands/BypassPluginCommand.cpp
+        Source/commands/SetPluginOrderCommand.cpp
+
+        # custom processor source files
+        Source/customProcessors/DelayProcessor.cpp
+
+        # ui source files
+        Source/ui/PluginWindow.cpp
+
+        Source/ui/main/PluginGraphViewComponent.cpp
+        Source/ui/main/SettingsOverlayComponent.cpp
+        Source/ui/main/MainComponent.cpp
+
+        Source/ui/pluginList/PluginListBoxComponent.cpp
+        Source/ui/pluginList/PluginListWindow.cpp
+
+        # scanner source files
+        Source/scanner/PluginScannerCoordinator.cpp
         )
 
-target_include_directories (NoTracDSP
-    PRIVATE
-        Source)
+target_include_directories (NoTracDSP PRIVATE Source)
 
 target_compile_definitions (NoTracDSP
     PUBLIC
@@ -61,7 +81,7 @@ juce_add_gui_app(PluginScannerWorkerMain
 )
 
 target_sources(PluginScannerWorkerMain PRIVATE
-    Source/PluginScannerWorkerMain.cpp
+    Source/scanner/PluginScannerWorkerMain.cpp
     # Only include files the worker specifically needs to compile
 )
 

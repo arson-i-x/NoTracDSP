@@ -1,4 +1,4 @@
-#include <DelayProcessor.h>
+#include "DelayProcessor.h"
 
 void DelayProcessor::prepare (double newSampleRate, int newBlockSize, int newNumChannels) noexcept
 {

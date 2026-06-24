@@ -2,15 +2,13 @@
 
 static juce::MemoryBlock toBlock(const juce::String& s) { return { s.toRawUTF8(), (size_t) s.getNumBytesAsUTF8() }; }
 
-PluginScannerCoordinator::PluginScannerCoordinator() 
+PluginScannerCoordinator::PluginScannerCoordinator(AppMessageBus& messageBus) : messageBus(messageBus)
 {
     auto appData = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("NoTracDSP");
     appData.createDirectory();
     
     deadMansPedalFile = appData.getChildFile("scan_pedal.txt");
     knownPluginsFile = appData.getChildFile("known_plugins.xml");
-    
-    juce::addDefaultFormatsToManager(formatManager);
     
     if (knownPluginsFile.existsAsFile())
         if (auto xml = juce::XmlDocument::parse(knownPluginsFile))
@@ -214,10 +212,10 @@ void PluginScannerCoordinator::handleConnectionLost()
     // //DBG("CURRENT FILE: " + currentFile.getFileName());
     // //DBG("WORKER REPORTED DONE: " + juce::String(int(workerReportedDone)));
     // //DBG("====================");
-    // if (workerReportedDone)
-    // {
-    //     return;
-    // }
+    if (workerReportedDone)
+    {
+        return;
+    }
     // // Because currentFile is tracked safely in our frontend class state, 
     // // we know EXACTLY what plugin just crashed without any disk file checks.
     // //DBG("PluginScanner/Coordinator [DEBUG] Plugin crashed during scan: " + currentFile.getFullPathName());
@@ -233,7 +231,8 @@ void PluginScannerCoordinator::handleConnectionLost()
     //             scanNextItemInQueue();
     //         }));
     // });
-    //DBG("PluginScanner/Coordinator [DEBUG] Worker Connection lost.");
+    DBG("PluginScanner/Coordinator [DEBUG] Worker Connection lost and not reported done. \
+        Marking plugin as failed: " + currentFile.getFullPathName());
 }
 
 void PluginScannerCoordinator::setUi(const juce::String& text, bool enabled) 

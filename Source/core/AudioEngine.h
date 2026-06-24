@@ -1,26 +1,17 @@
 #pragma once
 
-#include "AudioProcessorBase.h"
-#include "GainProcessor.h"
-#include "DelayProcessor.h"
 #include <atomic>
+
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
-struct ActivePluginInfo
-{
-    juce::AudioProcessorGraph::NodeID nodeId;
-    juce::String name;
-    bool bypassed = false;
-};
+#include "core/AppMessageBus.h"
 
-struct ActivePlugin
-{
-    juce::AudioProcessorGraph::NodeID nodeId;
-    juce::PluginDescription desc;
-    juce::String name;
-    bool bypassed = false;
-};
+#include "commands/AppCommand.h"
+
+#include "customProcessors/AudioProcessorBase.h"
+#include "customProcessors/GainProcessor.h"
+#include "customProcessors/DelayProcessor.h"
 
 class AudioEngine final : public juce::AudioIODeviceCallback,
                           private juce::ChangeListener,
@@ -37,9 +28,33 @@ public:
         juce::String latencyText = "Input latency: - | Output latency: -";
         juce::String statusText = "Initializing...";
     };
+    struct ActivePluginInfo
+    {
+        juce::AudioProcessorGraph::NodeID nodeId;
+        juce::String name;
+        bool bypassed = false;
+    };
 
-    AudioEngine();
-    ~AudioEngine() override;
+    struct ActivePlugin
+    {
+        juce::AudioProcessorGraph::NodeID nodeId;
+        juce::PluginDescription desc;
+        juce::String name;
+        bool bypassed = false;
+    };
+
+    struct PluginSnapshot {
+        juce::PluginDescription desc;
+        juce::String name;
+        bool bypassed = false;
+        int chainIndex = -1;
+        juce::MemoryBlock state;
+    };
+
+    AudioEngine(AppMessageBus& messageBus);
+    ~AudioEngine();
+
+    juce::AudioPluginFormatManager& getPluginFormatManager() noexcept { return pluginFormatManager; }
 
     juce::AudioDeviceManager& getAudioDeviceManager() noexcept { return audioDeviceManager; }
     const juce::AudioDeviceManager& getAudioDeviceManager() const noexcept { return audioDeviceManager; }
@@ -74,23 +89,37 @@ public:
                                            const juce::AudioIODeviceCallbackContext& context) override;
 
     // Adds the plugin and returns a ptr to its node for front end
-    juce::AudioProcessorGraph::Node::Ptr addPlugin(
+    AppCommand::Result<juce::AudioProcessorGraph::Node::Ptr> addPlugin(
         const juce::PluginDescription& desc,
         juce::AudioPluginFormatManager& formatManager);
 
     // void swapPlugin(size_t indexA, size_t indexB);
-    std::vector<ActivePluginInfo> getActivePlugins() const;
+    std::vector<AudioEngine::ActivePluginInfo> getActivePlugins() const;
 
-    void removePlugin(juce::AudioProcessorGraph::NodeID nodeId);
-    void setPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder);
-    void toggleBypass(juce::AudioProcessorGraph::NodeID nodeId);
+    AppCommand::Result<PluginSnapshot> getPluginSnapshot(juce::AudioProcessorGraph::NodeID nodeId) const;
+    AppCommand::Status removePlugin(juce::AudioProcessorGraph::NodeID nodeId);
+    AppCommand::Status togglePluginBypass(juce::AudioProcessorGraph::NodeID nodeId);
+    AppCommand::Status setPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId, bool shouldBeBypassed);
+    AppCommand::Status setPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder);
+    AppCommand::Status restorePluginSnapshot(const PluginSnapshot& snapshot, juce::AudioPluginFormatManager& formatManager);
+
+    AppCommand::Status canFindPlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
+    AppCommand::Status canSetPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder) const;
+    AppCommand::Status canRestorePluginSnapshot(const PluginSnapshot& snapshot) const;
+    AppCommand::Status canAddPlugin(const juce::PluginDescription& desc) const;
+
     void rebuildGraphConnections();
-    void setPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId, bool shouldBeBypassed);
     bool isPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId) const;
     juce::String getPluginName(juce::AudioProcessorGraph::NodeID nodeId) const;
     
+    void setPluginName(juce::AudioProcessorGraph::NodeID nodeId, const juce::String& newName);
+    AudioEngine::ActivePluginInfo getActivePluginInfo(juce::AudioProcessorGraph::NodeID nodeId) const;
+    AudioEngine::ActivePlugin getActivePlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
+    juce::AudioProcessorGraph::Node::Ptr getNodeForId(juce::AudioProcessorGraph::NodeID nodeId) const;
 
 private:
+    AppMessageBus& messages;
+
     juce::AudioProcessorGraph audioProcessorGraph;
     juce::AudioProcessorGraph::Node::Ptr inputNode;
     juce::AudioProcessorGraph::Node::Ptr outputNode;
@@ -98,6 +127,8 @@ private:
     std::vector<ActivePlugin> activePlugins;
 
     juce::AudioDeviceManager audioDeviceManager;
+
+    juce::AudioPluginFormatManager pluginFormatManager;
     
     DeviceStatus deviceStatus;
 

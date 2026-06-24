@@ -2,7 +2,8 @@
 // and creates a UI box to load plugins in the engine
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
-#include "PluginScannerCoordinator.h"
+#include "scanner/PluginScannerCoordinator.h"
+#include "core/DirectoryManager.h"
 
 class PluginListModel : public juce::ListBoxModel
 {
@@ -11,44 +12,17 @@ public:
 
     ~PluginListModel() = default;
 
-    void setPluginList(const juce::KnownPluginList& list)
-    {
-        pluginList = &list;
-    }
-
-    int getNumRows() override
-    {
-        if (pluginList == nullptr)
-            return 0;
-
-        return pluginList->getTypes().size();
-    }
+    int getNumRows() override;
 
     void paintListBoxItem(int rowNumber,
                           juce::Graphics& g,
                           int width,
                           int height,
-                          bool rowIsSelected) override
+                          bool rowIsSelected) override;
+
+    void setPluginList(const juce::KnownPluginList* newList)
     {
-        if (pluginList == nullptr)
-            return;
-
-        auto types = pluginList->getTypes();
-
-        if (rowNumber >= types.size())
-            return;
-
-        if (rowIsSelected)
-            g.fillAll(juce::Colours::darkgrey);
-
-        g.setColour(juce::Colours::white);
-        g.drawText(types[rowNumber].name, 4, 0, width, height,
-                    juce::Justification::centredLeft);
-
-        g.drawText(types[rowNumber].name,
-                   4, 0,
-                   width, height,
-                   juce::Justification::centredLeft);
+        pluginList = newList;
     }
 
 private:
@@ -57,26 +31,27 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginListModel)
 };
 
-class PluginListBox : public juce::Component
+class PluginListBoxComponent : public juce::Component
 {
 public:
-    PluginListBox();
-    ~PluginListBox();
+    PluginListBoxComponent(AppMessageBus& msg);
+    ~PluginListBoxComponent();
     void setPluginList(const juce::KnownPluginList& newList);
-    void choosePluginDirectory();
     void scanForPlugins();
     void resized() override;
     void loadPlugin();
 
-    juce::AudioPluginFormatManager& getPluginFormatManager() { return pluginScanner.formatManager; };
-
     std::function<void(const juce::PluginDescription&)> onPluginChosen;
     
 private:
+    AppMessageBus messages;
+
     juce::PluginDescription getSelectedPlugin();
 
     PluginListModel model;
     juce::ListBox pluginListBox;
+
+    DirectoryManager directoryManager;
 
     // Plugin scanning UI
     juce::Label pluginScannerLabel;
@@ -90,15 +65,13 @@ private:
 
     juce::TextButton scanPluginsButton;
 
-    std::unique_ptr<juce::FileChooser> fileChooser;
-
-    PluginScannerCoordinator pluginScanner;
+    PluginScannerCoordinator pluginScanner { messages };
 
     // State variables for plugin scanning
     juce::File selectedPluginDirectory;
 
     juce::TextButton loadPluginButton;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginListBox)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginListBoxComponent)
 
 };

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <filesystem>
 #include <string>
+#include "core/AppMessageBus.h"
 
 class PluginScannerCoordinator : public juce::ChildProcessCoordinator
 {
@@ -11,7 +12,7 @@ public:
 
     // Core plugin listing states
     juce::KnownPluginList knownPluginList;
-    juce::AudioPluginFormatManager formatManager;
+    std::optional<juce::AudioPluginFormatManager> formatManager;
 
     // Target tracking locations
     juce::File deadMansPedalFile;
@@ -30,7 +31,7 @@ public:
     // Callback types for updating UI component layers
     using ButtonStateFn = std::function<void(const juce::String& text, bool enabled)>;
 
-    PluginScannerCoordinator();
+    PluginScannerCoordinator(AppMessageBus& messageBus);
     ~PluginScannerCoordinator() override = default;
 
     // Kicks off the asynchronous queue loop
@@ -40,6 +41,7 @@ public:
     void saveKnownPluginList();
 
 private:
+    AppMessageBus messageBus;
 
     // JUCE ChildProcessCoordinator overrides
     void handleMessageFromWorker(const juce::MemoryBlock& mb) override;

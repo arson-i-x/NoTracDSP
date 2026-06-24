@@ -1,6 +1,6 @@
-#include "PluginListBox.h"
+#include "PluginListBoxComponent.h"
 
-PluginListBox::PluginListBox()
+PluginListBoxComponent::PluginListBoxComponent(AppMessageBus& msg) : messages(msg)
 {
     pluginListBox.setMultipleSelectionEnabled(false);
     pluginListBox.setClickingTogglesRowSelection(false);
@@ -23,7 +23,16 @@ PluginListBox::PluginListBox()
     addAndMakeVisible (pluginDirectoryValueLabel);
 
     choosePluginDirectoryButton.setButtonText ("Choose Folder...");
-    choosePluginDirectoryButton.onClick = [this] { choosePluginDirectory(); };
+    choosePluginDirectoryButton.onClick = [this] 
+    { 
+        directoryManager.onDirectoryChosen = [this](const juce::File& selectedDir) 
+        {
+            selectedPluginDirectory = selectedDir;
+            pluginDirectoryValueLabel.setText(selectedPluginDirectory.getFullPathName(), juce::dontSendNotification);
+            scanForPlugins();
+        };
+        directoryManager.chooseDirectory();
+    };
     addAndMakeVisible (choosePluginDirectoryButton);
 
     searchRecursivelyToggle.setButtonText ("Search recursively");
@@ -51,22 +60,21 @@ PluginListBox::PluginListBox()
     scanForPlugins(); // perform an initial scan to populate the list with any already known plugins
 }
 
-PluginListBox::~PluginListBox()
+PluginListBoxComponent::~PluginListBoxComponent()
 {
     setVisible(false);
-    fileChooser.reset();
 }
 
-void PluginListBox::setPluginList(const juce::KnownPluginList& newList)
+void PluginListBoxComponent::setPluginList(const juce::KnownPluginList& newList)
 {
     DBG("Updating plugin list with " + juce::String(newList.getTypes().size()) + " plugins.");
-    model.setPluginList(newList);
+    model.setPluginList(&newList);
     pluginScanner.saveKnownPluginList();
     pluginListBox.updateContent();
     repaint();
 }
 
-void PluginListBox::scanForPlugins() {
+void PluginListBoxComponent::scanForPlugins() {
     DBG("Scanning for plugins in directory: " + selectedPluginDirectory.getFullPathName());
 
     scanPluginsButton.setEnabled (false);
@@ -91,7 +99,7 @@ void PluginListBox::scanForPlugins() {
     resized(); // Trigger a layout update to show the progress bar immediately
 }
 
-void PluginListBox::resized() {
+void PluginListBoxComponent::resized() {
     auto area = getLocalBounds().reduced (28);
     auto titleArea = area.removeFromTop (48);
 
@@ -129,44 +137,60 @@ void PluginListBox::resized() {
     loadPluginButton.setBounds(loadArea.removeFromLeft(160));
 }
 
-void PluginListBox::choosePluginDirectory()
-{
-    // 1. Set up the file chooser criteria
-    fileChooser = std::make_unique<juce::FileChooser> (
-        "Select a Directory to Scan for Plugins",
-        juce::File::getSpecialLocation(juce::File::userHomeDirectory)
-    );
+int PluginListModel::getNumRows()
+   {
+        if (pluginList == nullptr)
+            return 0;
 
-    // 2. Define standard browser behavior flags
-    auto chooserFlags = juce::FileBrowserComponent::openMode 
-                      | juce::FileBrowserComponent::canSelectDirectories;
-
-    // 3. Launch asynchronously without blocking the message loop
-    fileChooser->launchAsync (chooserFlags, [this] (const juce::FileChooser& chooser)
-    {
-        // This block executes ONLY when the user closes the window
-        auto resultFile = chooser.getResult();
-
-        selectedPluginDirectory = resultFile;
-        // updateScannerReadouts();
-    });
-}
-
-juce::PluginDescription PluginListBox::getSelectedPlugin() 
-{
-    int row = pluginListBox.getSelectedRow();
-
-    if (row >= 0)
-    {
-        const auto desc = pluginScanner.knownPluginList.getTypes()[row];
-        DBG("Selected plugin: " + desc.name + " at " + desc.fileOrIdentifier);
-        return desc;
+        return pluginList->getTypes().size();
     }
 
-    return juce::PluginDescription();
-}
+void PluginListModel::paintListBoxItem(int rowNumber,
+                                        juce::Graphics& g,
+                                        int width,
+                                        int height,
+                                        bool rowIsSelected)
 
-void PluginListBox::loadPlugin() 
+    {
+        if (pluginList == nullptr)
+            return;
+
+        auto types = pluginList->getTypes();
+
+        if (rowNumber >= types.size())
+            return;
+
+        if (rowIsSelected)
+            g.fillAll(juce::Colours::darkgrey);
+
+        g.setColour(juce::Colours::white);
+        g.drawText(types[rowNumber].name, 4, 0, width, height,
+                    juce::Justification::centredLeft);
+
+        g.drawText(types[rowNumber].name,
+                   4, 0,
+                   width, height,
+                   juce::Justification::centredLeft);
+    }
+                                        // {
+    //     if (pluginList == nullptr || rowNumber < 0 || rowNumber >= pluginList->getTypes().size())
+    //         return;
+
+    //     const auto& desc = pluginList->getTypes()[rowNumber];
+
+    //     if (rowIsSelected)
+    //         g.fillAll(juce::Colour(0xff2b3440));
+
+    //     g.setColour(juce::Colour(0xff8bd3ff));
+    //     g.setFont(juce::Font { juce::FontOptions (16.0f, juce::Font::bold) });
+    //     g.drawText(desc.name, 4, 0, width - 4, height / 2, juce::Justification::centredLeft);
+
+    //     g.setColour(juce::Colour(0xffc7d0db));
+    //     g.setFont(juce::Font { juce::FontOptions (14.0f) });
+    //     g.drawText(desc.pluginFormatName + " - " + desc.fileOrIdentifier, 4, height / 2, width - 4, height / 2, juce::Justification::centredLeft);
+    // }
+
+void PluginListBoxComponent::loadPlugin() 
 {
     DBG("Load plugin button clicked.");
     auto desc = getSelectedPlugin();
