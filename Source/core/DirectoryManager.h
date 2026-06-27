@@ -12,5 +12,6 @@ public:
 private:
     std::unique_ptr<juce::FileChooser> fileChooser;
     juce::File selectedDirectory;
+    std::vector<juce::File> searchPaths;
     int chooserFlags;
 };

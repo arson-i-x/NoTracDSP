@@ -1,4 +1,4 @@
-#include "./MainComponent.h"
+#include "MainComponent.h"
 
 MidiTrigger MainComponent::midiTriggerForSoftwareSwitch(int switchNumber)
 {
@@ -6,6 +6,62 @@ MidiTrigger MainComponent::midiTriggerForSoftwareSwitch(int switchNumber)
         MidiTriggerType::cc,
         1,
         19 + switchNumber};
+}
+
+void MainComponent::createUndoRedoButtons() 
+{
+    auto undoImage = resources.getIcon(IconType::Undo);
+    auto redoImage = resources.getIcon(IconType::Redo);
+    auto settingsImage = resources.getIcon(IconType::Settings);
+
+    undoButton.setImages(
+        false, true, true,
+        undoImage, 1.0f, juce::Colours::transparentBlack,
+        undoImage, 0.8f, juce::Colours::transparentBlack,
+        undoImage, 0.5f, juce::Colours::transparentBlack);
+    redoButton.setImages(
+        false, true, true,
+        redoImage, 1.0f, juce::Colours::transparentBlack,
+        redoImage, 0.8f, juce::Colours::transparentBlack,
+        redoImage, 0.5f, juce::Colours::transparentBlack);
+    settingsButton.setImages(
+        false, true, true,
+        settingsImage, 1.0f, juce::Colours::transparentBlack,
+        settingsImage, 0.8f, juce::Colours::transparentBlack,
+        settingsImage, 0.5f, juce::Colours::transparentBlack);
+
+    undoButton.onClick = [this]
+    {
+        if (undoManager.canUndo())
+        {
+            undoManager.undo();
+            refreshGraphView();
+        }
+        else
+        {
+            AppMessageBus::getInstance().warning("Nothing to undo", "There are no actions to undo.");
+        }
+    };
+    redoButton.onClick = [this]
+    {
+        if (undoManager.canRedo())
+        {
+            undoManager.redo();
+            refreshGraphView();
+        }
+        else 
+        {
+            AppMessageBus::getInstance().warning("Nothing to redo", "There are no actions to redo.");
+        }
+    };
+    settingsButton.onClick = [this]
+    {
+        settingsOverlay.setVisible(true);
+    };
+
+    addAndMakeVisible(undoButton);
+    addAndMakeVisible(redoButton);
+    addAndMakeVisible(settingsButton);
 }
 
 void MainComponent::createMasterGainUI()
@@ -27,22 +83,6 @@ void MainComponent::createMasterGainUI()
     gainValueLabel.setJustificationType(juce::Justification::centredRight);
     gainValueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff8bd3ff));
     addAndMakeVisible(gainValueLabel);
-}
-
-void MainComponent::createDeviceStatusUI()
-{
-    deviceTypeLabel.setJustificationType(juce::Justification::centredLeft);
-    deviceNameLabel.setJustificationType(juce::Justification::centredLeft);
-    deviceFormatLabel.setJustificationType(juce::Justification::centredLeft);
-    deviceChannelLabel.setJustificationType(juce::Justification::centredLeft);
-    deviceLatencyLabel.setJustificationType(juce::Justification::centredLeft);
-    deviceStatusLabel.setJustificationType(juce::Justification::centredLeft);
-
-    for (auto *label : {&deviceTypeLabel, &deviceNameLabel, &deviceFormatLabel, &deviceChannelLabel, &deviceLatencyLabel, &deviceStatusLabel})
-    {
-        label->setColour(juce::Label::textColourId, juce::Colour(0xffdbe4ee));
-        addAndMakeVisible(label);
-    }
 }
 
 void MainComponent::createCustomFXUI()
@@ -96,27 +136,27 @@ void MainComponent::createTitleLabel()
 void MainComponent::createSettingsOverlay()
 {
     addAndMakeVisible(settingsOverlay);
-    settingsOverlay.setVisible(false);
-    settingsOverlay.onSwitchSelected =
-        [this](int switchNumber)
-    {
-        auto target = settingsOverlay.getTargetNodeId();
 
-        if (!target.has_value())
-            return;
+    // settingsOverlay.onSwitchSelected =
+    //     [this](int switchNumber)
+    // {
+    //     auto target = settingsOverlay.getTargetNodeId();
 
-        MidiTrigger trigger = midiTriggerForSoftwareSwitch(switchNumber);
+    //     if (!target.has_value())
+    //         return;
 
-        midiMappingManager.mapTriggerToBypass(trigger, *target);
+    //     MidiTrigger trigger = midiTriggerForSoftwareSwitch(switchNumber);
 
-        DBG("Mapped switch " + juce::String(switchNumber) + " to plugin node " + juce::String(target->uid));
-    };
+    //     midiMappingManager.mapTriggerToBypass(trigger, *target);
+
+    //     DBG("Mapped switch " + juce::String(switchNumber) + " to plugin node " + juce::String(target->uid));
+    // };
 }
 
 void MainComponent::tryAddPluginFromList(const juce::PluginDescription &desc)
 {
     auto validation = audioEngine.canAddPlugin(desc);
-
+    auto& messages = AppMessageBus::getInstance();
     if (!validation.ok)
     {
         messages.error("Cannot add plugin", validation.error);
@@ -138,23 +178,36 @@ void MainComponent::tryAddPluginFromList(const juce::PluginDescription &desc)
     refreshGraphView();
 }
 
+void MainComponent::closePluginListWindow()
+{
+    sidebarOpened = false;
+    pluginListBoxComponent.setVisible(false);
+    resized();
+}
+
 void MainComponent::openPluginListWindow()
 {
-    pluginListWindow = std::make_unique<PluginListWindow>(messages);
+    // pluginListWindow = std::make_unique<PluginListWindow>(messages);
 
-    auto* pluginListSelector = pluginListWindow->getPluginListBox();
+    // pluginListBoxComponent = pluginListWindow->getPluginListBox();
 
-    pluginListSelector->onPluginChosen = 
+    sidebarOpened = true;
+
+    pluginListBoxComponent.onPluginChosen = 
     [this](const juce::PluginDescription& desc)
     {
         tryAddPluginFromList(desc);
     };
+
+    addAndMakeVisible(pluginListBoxComponent);
+
+    resized();
 }
 
 void MainComponent::tryChangePluginBypassStateFromGraphView(juce::AudioProcessorGraph::NodeID nodeId)
 {
     auto validation = audioEngine.canFindPlugin(nodeId);
-
+    auto &messages = AppMessageBus::getInstance();
     if (!validation.ok)
     {
         messages.warning("Cannot bypass plugin", validation.error);
@@ -171,6 +224,7 @@ void MainComponent::tryChangePluginOrderFromGraphView(const std::vector<juce::Au
 {
     auto validation = audioEngine.canSetPluginOrder(newOrder);
 
+    auto &messages = AppMessageBus::getInstance();
     if (!validation.ok)
     {
         messages.warning("Cannot reorder plugins", validation.error);
@@ -187,15 +241,31 @@ void MainComponent::tryRemovePluginFromGraphView(juce::AudioProcessorGraph::Node
 {
     auto validation = audioEngine.canFindPlugin(nodeId);
 
+    auto &messages = AppMessageBus::getInstance();
     if (!validation.ok)
     {
-        messages.warning("Cannot remove plugin", validation.error);
+        messages.warning("Cannot find plugin", validation.error);
         return;
+    }
+
+    if (pluginWindows.find(nodeId) != pluginWindows.end())
+    {
+        pluginWindows[nodeId]->setVisible(false);
+        pluginWindows.erase(nodeId);
     }
 
     const bool performed = undoManager.perform(
         new RemovePluginCommand(audioEngine, nodeId)
     );
+
+    if (!performed)
+    {
+        messages.error("Failed to remove plugin", "An unknown error occurred while removing the plugin.");
+    }
+    else
+    {
+        messages.info("Plugin removed", "Successfully removed plugin.");
+    }
 
     refreshGraphView();
 };
@@ -208,10 +278,19 @@ void MainComponent::tryMidiMapPluginFromGraphView(juce::AudioProcessorGraph::Nod
 
 void MainComponent::createPluginListButton()
 {
-    openPluginListWindowButton.setButtonText("Load Plugins");
+    openPluginListWindowButton.setButtonText("+");
 
     openPluginListWindowButton.onClick = [this]
-    { openPluginListWindow(); };
+    { 
+        if (sidebarOpened)
+        {
+            closePluginListWindow();
+        }
+        else
+        {
+            openPluginListWindow();
+        }
+    };
 
     addAndMakeVisible(openPluginListWindowButton);
 }
@@ -239,23 +318,6 @@ void MainComponent::createPluginGraphViewWithCallbacks()
     pluginGraphViewComponent.onMidiMapRequested =
         [this](juce::AudioProcessorGraph::NodeID nodeId)
     { tryMidiMapPluginFromGraphView(nodeId); };
-}
-
-void MainComponent::createDeviceSelectorUI()
-{
-    deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent>(audioEngine.getAudioDeviceManager(),
-                                                                          2,
-                                                                          256,
-                                                                          2,
-                                                                          256,
-                                                                          false,
-                                                                          false,
-                                                                          true,
-                                                                          false);
-    deviceSelector->setColour(juce::Label::textColourId, juce::Colour(0xffdbe4ee));
-    deviceSelector->setColour(juce::TextButton::buttonColourId, juce::Colour(0xff243041));
-    deviceSelector->setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff3f536d));
-    addAndMakeVisible(deviceSelector.get());
 }
 
 void MainComponent::openFirstMidiInput()
@@ -357,25 +419,40 @@ void MainComponent::paint(juce::Graphics &g)
 
 void MainComponent::resized()
 {
-    auto area = getLocalBounds().reduced(28);
-    auto titleArea = area.removeFromTop(48);
+    auto mainArea = getLocalBounds().reduced(28);
 
+    auto titleSize = 48;
+    auto titleArea = mainArea.removeFromTop(titleSize);
     titleLabel.setBounds(titleArea);
 
-    area.removeFromTop(8);
+    auto gapBetweenButtons = 10;
+    auto buttonSize = undoButton.getNormalImage().getWidth()/3;
+    auto controlPanelArea = mainArea.removeFromTop(buttonSize + gapBetweenButtons);
+    undoButton.setBounds(controlPanelArea.removeFromLeft(buttonSize+gapBetweenButtons));
+    redoButton.setBounds(controlPanelArea.removeFromLeft(buttonSize+gapBetweenButtons));
+    settingsButton.setBounds(controlPanelArea.removeFromLeft(buttonSize+gapBetweenButtons));
 
-    deviceSelector->setBounds(area.removeFromTop(100));
+    auto sidebarArea = mainArea.removeFromLeft(64);
+    auto sidebarButtonArea = sidebarArea.reduced(10.0f).removeFromTop(64+400).removeFromBottom(64);
+    openPluginListWindowButton.setBounds(sidebarButtonArea);
+    if (sidebarOpened)
+    {
+        auto pluginListComponentArea = mainArea.removeFromLeft(300);
+        pluginListBoxComponent.setBounds(pluginListComponentArea);
+    } 
 
-    area.removeFromTop(12);
+    mainArea.removeFromTop(12);
 
-    auto addPluginButtonArea = area.removeFromTop(32);
-    openPluginListWindowButton.setBounds(addPluginButtonArea);
+    // Hide the plugin list button for now, as the plugin list is now integrated into the main UI.
+    // auto addPluginButtonArea = mainArea.removeFromTop(32);
+    // openPluginListWindowButton.setBounds(addPluginButtonArea);
 
-    // auto showPluginGraphViewButtonArea = area.removeFromTop (32);
+    // Hide the plugin graph view button for now, as the plugin graph view is always visible.
+    // auto showPluginGraphViewButtonArea = mainArea.removeFromTop (32);
     // showPluginGraphViewButton.setBounds (showPluginGraphViewButtonArea);
 
-    // create an area below the device status labels for the delay and gain controls
-    auto controlArea = area.removeFromTop(250);
+    // create an mainArea below the device status labels for the delay and gain controls
+    auto controlArea = mainArea.removeFromTop(250);
     pluginGraphViewComponent.setBounds(controlArea);
 
     // auto delayTimeArea = controlArea.removeFromTop (48);
@@ -395,41 +472,7 @@ void MainComponent::resized()
 
     settingsOverlay.setBounds(getLocalBounds());
     settingsOverlay.toFront(false);
-
-    auto leftColumn = area.removeFromLeft(330);
-    auto rightColumn = area;
-
-    auto row = leftColumn.removeFromTop(28);
-    deviceTypeLabel.setBounds(row);
-    row = leftColumn.removeFromTop(32);
-    deviceNameLabel.setBounds(row);
-    row = leftColumn.removeFromTop(46);
-    deviceFormatLabel.setBounds(row);
-    row = leftColumn.removeFromTop(46);
-    deviceChannelLabel.setBounds(row);
-    row = leftColumn.removeFromTop(46);
-    deviceLatencyLabel.setBounds(row);
-    row = leftColumn.removeFromTop(46);
-    deviceStatusLabel.setBounds(row);
-
-    deviceSelector->setBounds(rightColumn);
-}
-
-void MainComponent::changeListenerCallback(juce::ChangeBroadcaster *)
-{
-    updateDeviceLabels();
-}
-
-void MainComponent::updateDeviceLabels()
-{
-    const auto status = audioEngine.getDeviceStatus();
-
-    deviceTypeLabel.setText("Device type: " + status.deviceType, juce::dontSendNotification);
-    deviceNameLabel.setText("Device: " + status.deviceName, juce::dontSendNotification);
-    deviceFormatLabel.setText(status.formatText, juce::dontSendNotification);
-    deviceChannelLabel.setText(status.channelText, juce::dontSendNotification);
-    deviceLatencyLabel.setText(status.latencyText, juce::dontSendNotification);
-    deviceStatusLabel.setText("Status: " + status.statusText, juce::dontSendNotification);
+    settingsOverlay.setVisible(false);
 }
 
 void MainComponent::updateGainReadout()

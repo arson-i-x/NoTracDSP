@@ -1,10 +1,9 @@
 #include "AudioEngine.h"
 
-AudioEngine::AudioEngine(AppMessageBus& messageBus) : juce::AudioIODeviceCallback(),
+AudioEngine::AudioEngine() : juce::AudioIODeviceCallback(),
                                                    juce::ChangeListener(),
                                                    juce::AsyncUpdater(),
-                                                   juce::ChangeBroadcaster(),
-                                                   messages(messageBus)
+                                                   juce::ChangeBroadcaster()
 {
     const auto initResult = audioDeviceManager.initialise (1, 2, nullptr, true);
 
@@ -12,15 +11,6 @@ AudioEngine::AudioEngine(AppMessageBus& messageBus) : juce::AudioIODeviceCallbac
 
     if (initResult.isNotEmpty())
         deviceStatus.statusText = initResult;
-
-    // Set up the audio processing chain. The order of processors in this array determines the order in which they are applied to the audio signal.
-    // processors.push_back(
-    //     std::make_unique<GainProcessor>()
-    // );
-
-    // processors.push_back(
-    //     std::make_unique<DelayProcessor>()
-    // );
 
     inputNode = audioProcessorGraph.addNode(
     std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
@@ -34,12 +24,6 @@ AudioEngine::AudioEngine(AppMessageBus& messageBus) : juce::AudioIODeviceCallbac
     audioDeviceManager.addChangeListener (this);
     audioDeviceManager.addAudioCallback (this);
     refreshDeviceStatus();
-}
-
-AudioEngine::~AudioEngine()
-{
-    audioDeviceManager.removeAudioCallback (this);
-    audioDeviceManager.removeChangeListener (this);
 }
 
 AudioEngine::DeviceStatus AudioEngine::getDeviceStatus() const noexcept
@@ -72,16 +56,6 @@ void AudioEngine::setDelayTimeMs (float ms) noexcept
 void AudioEngine::setDelayMix (float mix) noexcept
 {
     // delayProcessor.setDelayMix (mix);
-}
-
-void AudioEngine::addStatusListener (juce::ChangeListener* listener)
-{
-    addChangeListener (listener);
-}
-
-void AudioEngine::removeStatusListener (juce::ChangeListener* listener)
-{
-    removeChangeListener (listener);
 }
 
 void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
@@ -574,4 +548,16 @@ juce::String AudioEngine::getPluginName(juce::AudioProcessorGraph::NodeID nodeId
     }
 
     return "Unknown Plugin";
+}
+
+void AudioEngine::shutdown()
+{
+    audioDeviceManager.removeAudioCallback(this);
+    audioDeviceManager.removeChangeListener(this);
+
+    activePlugins.clear();
+    audioProcessorGraph.clear();
+
+    inputNode = nullptr;
+    outputNode = nullptr;
 }

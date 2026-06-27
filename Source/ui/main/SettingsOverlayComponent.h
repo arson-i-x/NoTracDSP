@@ -1,17 +1,22 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "core/MidiMapping.h"
+#include "core/AudioEngine.h"
 
-class SettingsOverlayComponent : public juce::Component
+class SettingsOverlayComponent : public juce::Component,
+                                 private juce::ChangeListener
 {
 public:
-    SettingsOverlayComponent();
+    SettingsOverlayComponent(AudioEngine& engine);
 
     ~SettingsOverlayComponent()
     {
         setVisible(false);
+        deviceSelector.reset();
+        audioEngine.removeStatusListener(this);
     }
 
     void openForPlugin(juce::AudioProcessorGraph::NodeID nodeId,
@@ -30,8 +35,13 @@ public:
     // Called when user clicks software switch 1-8
     std::function<void(int switchNumber)> onSwitchSelected;
 
+    void changeListenerCallback(juce::ChangeBroadcaster *) override;
+
 private:
     void updateStatus();
+    void createDeviceSelectorUI();
+    void createDeviceStatusUI();
+    void updateDeviceLabels();
 
     juce::Label titleLabel;
     juce::Label statusLabel;
@@ -43,4 +53,16 @@ private:
     juce::String targetPluginName;
 
     int selectedSwitchIndex = -1;
+
+    std::unique_ptr<juce::AudioDeviceSelectorComponent> deviceSelector;
+
+    // Device status labels
+    juce::Label deviceTypeLabel;
+    juce::Label deviceNameLabel;
+    juce::Label deviceFormatLabel;
+    juce::Label deviceChannelLabel;
+    juce::Label deviceLatencyLabel;
+    juce::Label deviceStatusLabel;
+
+    AudioEngine& audioEngine;
 };

@@ -51,8 +51,8 @@ public:
         juce::MemoryBlock state;
     };
 
-    AudioEngine(AppMessageBus& messageBus);
-    ~AudioEngine();
+    AudioEngine();
+    ~AudioEngine() override = default;
 
     juce::AudioPluginFormatManager& getPluginFormatManager() noexcept { return pluginFormatManager; }
 
@@ -76,8 +76,8 @@ public:
 
     [[nodiscard]] DeviceStatus getDeviceStatus() const noexcept;
 
-    void addStatusListener (juce::ChangeListener* listener);
-    void removeStatusListener (juce::ChangeListener* listener);
+    void addStatusListener (juce::ChangeListener* listener) { addChangeListener (listener); };
+    void removeStatusListener (juce::ChangeListener* listener) { removeChangeListener (listener); };
 
     void audioDeviceAboutToStart (juce::AudioIODevice* device) override;
     void audioDeviceStopped() override;
@@ -95,7 +95,7 @@ public:
 
     // void swapPlugin(size_t indexA, size_t indexB);
     std::vector<AudioEngine::ActivePluginInfo> getActivePlugins() const;
-
+    
     AppCommand::Result<PluginSnapshot> getPluginSnapshot(juce::AudioProcessorGraph::NodeID nodeId) const;
     AppCommand::Status removePlugin(juce::AudioProcessorGraph::NodeID nodeId);
     AppCommand::Status togglePluginBypass(juce::AudioProcessorGraph::NodeID nodeId);
@@ -117,9 +117,8 @@ public:
     AudioEngine::ActivePlugin getActivePlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
     juce::AudioProcessorGraph::Node::Ptr getNodeForId(juce::AudioProcessorGraph::NodeID nodeId) const;
 
-private:
-    AppMessageBus& messages;
-
+    void shutdown();
+private: 
     juce::AudioProcessorGraph audioProcessorGraph;
     juce::AudioProcessorGraph::Node::Ptr inputNode;
     juce::AudioProcessorGraph::Node::Ptr outputNode;
@@ -144,6 +143,6 @@ private:
     double sampleRate = 0.0;
     int blockSize = 0;
     int numChannels = 0;
-
+    bool isStillRegisteredSomewhere = false; // optional flag to track if the singleton is still registered somewhere
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioEngine)
 };

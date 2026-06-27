@@ -1,11 +1,11 @@
-#include "ui/MainComponent.h"
+#include "ui/main/MainWindow.h"
 
 class QuadCorePrototypeApplication final : public juce::JUCEApplication
 {
 public:
     const juce::String getApplicationName() override       { return "NoTrac DSP Prototype"; }
     const juce::String getApplicationVersion() override    { return "0.1.0"; }
-    bool moreThanOneInstanceAllowed() override             { return true; }
+    bool moreThanOneInstanceAllowed() override             { return false; }
 
     void initialise (const juce::String& commandLine) override
     {

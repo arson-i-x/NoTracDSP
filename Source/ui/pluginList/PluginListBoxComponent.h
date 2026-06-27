@@ -4,6 +4,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "scanner/PluginScannerCoordinator.h"
 #include "core/DirectoryManager.h"
+#include "commands/AppCommand.h"
 
 class PluginListModel : public juce::ListBoxModel
 {
@@ -20,10 +21,9 @@ public:
                           int height,
                           bool rowIsSelected) override;
 
-    void setPluginList(const juce::KnownPluginList* newList)
-    {
-        pluginList = newList;
-    }
+    void setPluginList(const juce::KnownPluginList* newList);
+
+    juce::Array<juce::PluginDescription> getPluginDescriptions() const;
 
 private:
     const juce::KnownPluginList* pluginList = nullptr;
@@ -34,19 +34,18 @@ private:
 class PluginListBoxComponent : public juce::Component
 {
 public:
-    PluginListBoxComponent(AppMessageBus& msg);
+    PluginListBoxComponent();
     ~PluginListBoxComponent();
-    void setPluginList(const juce::KnownPluginList& newList);
     void scanForPlugins();
     void resized() override;
-    void loadPlugin();
+    AppCommand::Status loadPlugin();
 
     std::function<void(const juce::PluginDescription&)> onPluginChosen;
-    
-private:
-    AppMessageBus messages;
 
-    juce::PluginDescription getSelectedPlugin();
+private:
+    void updateScanSettings();
+    void setPluginList(const juce::KnownPluginList& newList);
+    AppCommand::Result<juce::PluginDescription> getSelectedPlugin();
 
     PluginListModel model;
     juce::ListBox pluginListBox;
@@ -65,12 +64,16 @@ private:
 
     juce::TextButton scanPluginsButton;
 
-    PluginScannerCoordinator pluginScanner { messages };
+    juce::ImageButton closeButton;
+
+    PluginScannerCoordinator pluginScanner;
 
     // State variables for plugin scanning
     juce::File selectedPluginDirectory;
 
     juce::TextButton loadPluginButton;
+
+    PluginScannerCoordinator::ScanSettings settings;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginListBoxComponent)
 

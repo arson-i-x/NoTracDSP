@@ -46,7 +46,18 @@ target_sources (NoTracDSP
         Source/scanner/PluginScannerCoordinator.cpp
         )
 
-target_include_directories (NoTracDSP PRIVATE Source)
+target_include_directories (NoTracDSP 
+    PRIVATE 
+        Source 
+        ${CMAKE_CURRENT_BINARY_DIR}/juce_binarydata_NoTracDSPBinaryData)
+
+juce_add_binary_data(NoTracDSPBinaryData
+    SOURCES
+        Assets/undo.png
+        Assets/redo.png
+        Assets/bypass.png
+        Assets/settings.png
+)
 
 target_compile_definitions (NoTracDSP
     PUBLIC
@@ -70,6 +81,7 @@ target_link_libraries (NoTracDSP
         juce::juce_gui_extra
         juce::juce_audio_processors 
         juce::juce_events
+        NoTracDSPBinaryData
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

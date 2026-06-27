@@ -19,6 +19,12 @@ struct AppMessage
 class AppMessageBus
 {
 public:
+    static AppMessageBus& getInstance()
+    {
+        static AppMessageBus instance;
+        return instance;
+    }
+
     std::function<void(const AppMessage&)> onMessage;
 
     void post(AppMessage message)
@@ -41,4 +47,9 @@ public:
     {
         post({ AppMessageSeverity::error, title, message });
     }
+private:
+    AppMessageBus() = default;
+    ~AppMessageBus() = default;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AppMessageBus)
 };

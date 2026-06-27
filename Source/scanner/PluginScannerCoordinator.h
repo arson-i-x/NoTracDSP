@@ -9,10 +9,12 @@
 class PluginScannerCoordinator : public juce::ChildProcessCoordinator
 {
 public:
+    using ButtonStateFn = std::function<void(const juce::String& text, bool enabled)>;
+
+    using DoneCallbackFn = std::function<void(const juce::KnownPluginList& newList)>;
 
     // Core plugin listing states
     juce::KnownPluginList knownPluginList;
-    std::optional<juce::AudioPluginFormatManager> formatManager;
 
     // Target tracking locations
     juce::File deadMansPedalFile;
@@ -28,21 +30,19 @@ public:
         bool allowAsyncInstantiation = false;
     };
 
-    // Callback types for updating UI component layers
-    using ButtonStateFn = std::function<void(const juce::String& text, bool enabled)>;
-
-    PluginScannerCoordinator(AppMessageBus& messageBus);
+    PluginScannerCoordinator();
     ~PluginScannerCoordinator() override = default;
 
     // Kicks off the asynchronous queue loop
-    void startScan(ScanSettings& settings, ButtonStateFn cb);
-    
-    // Saves and manages tracking lists
-    void saveKnownPluginList();
+    void startScan(
+        ScanSettings& settings, 
+        ButtonStateFn cb = nullptr,
+        DoneCallbackFn doneCb = nullptr
+    );
+
+    const juce::KnownPluginList& getKnownPlugins() const;
 
 private:
-    AppMessageBus messageBus;
-
     // JUCE ChildProcessCoordinator overrides
     void handleMessageFromWorker(const juce::MemoryBlock& mb) override;
     void handleConnectionLost() override;
@@ -55,6 +55,7 @@ private:
     void setUi(const juce::String& text, bool enabled);
     void finish();
     void scheduleNextScan();
+    void saveKnownPluginList();
 
     // Constant tracking identifiers
     static constexpr const char* kIPC = "NoTracDSPVST3Scan";
@@ -64,11 +65,13 @@ private:
     size_t currentFileIndex = 0;
     juce::File currentFile;
     ScanSettings pendingSettings;
-    
+
     bool workerReportedDone = false;
 
     // UI state preservation functions
+    // Callback types for updating UI component layers
     ButtonStateFn onButtonState;
+    DoneCallbackFn onDone;
 
     juce::String currentlyScanningPlugin;
     bool scanTimedOut = false;

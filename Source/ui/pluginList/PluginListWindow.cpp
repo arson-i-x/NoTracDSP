@@ -10,18 +10,17 @@ PluginListWindow::~PluginListWindow()
     setVisible(false);
 }
 
-PluginListWindow::PluginListWindow(AppMessageBus& msg)
+PluginListWindow::PluginListWindow()
     : DocumentWindow("Plugin List",
                      juce::Colours::black,
-                     DocumentWindow::closeButton),
-      messages(msg)
+                     DocumentWindow::closeButton)
 {
-    setContentOwned(new PluginListBox(messages), true);
+    setContentOwned(new PluginListBoxComponent(), true);
     centreWithSize(700, 1000);
     setVisible(true);
 }
 
-PluginListBox* PluginListWindow::getPluginListBox() const
+PluginListBoxComponent* PluginListWindow::getPluginListBox() const
 {
-    return dynamic_cast<PluginListBox*>(getContentComponent());
+    return dynamic_cast<PluginListBoxComponent*>(getContentComponent());
 }

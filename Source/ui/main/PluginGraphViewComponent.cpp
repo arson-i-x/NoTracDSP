@@ -220,8 +220,7 @@ void PluginGraphViewComponent::mouseDown(const juce::MouseEvent &event)
         if (item.removeButtonBounds.contains(pos))
         {
             if (onPluginRemoved)
-                DBG("Removing plugin " + item.name);
-            onPluginRemoved(item.nodeId);
+                onPluginRemoved(item.nodeId);
 
             return;
         }

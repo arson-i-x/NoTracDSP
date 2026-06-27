@@ -22,6 +22,8 @@
 #include "commands/SetPluginOrderCommand.h"
 // #include "commands/RestorePluginSnapshotCommand.h"
 
+#include "ui/ResourcesHelper.h"
+
 class MainComponent final : public juce::Component,
                             private juce::ChangeListener,
                             private juce::MidiInputCallback
@@ -36,20 +38,19 @@ public:
         createSettingsOverlay();
         createMasterGainUI();
         createCustomFXUI();
-        createDeviceStatusUI();
-        createDeviceSelectorUI();
+        // createDeviceStatusUI();
+        // createDeviceSelectorUI();
         createPluginListButton();
         createPluginGraphViewWithCallbacks();
+        createUndoRedoButtons();
         openFirstMidiInput();
-        updateDeviceLabels();
         updateGainReadout();
         updateDelayReadout();
-        setSize (1200, 800);
-        audioEngine.addStatusListener (this);
+        setSize (1440, 900);
 
-        messages.onMessage = [this](const AppMessage& message)
+        AppMessageBus::getInstance().onMessage = [this](const AppMessage& message)
         {
-            juce::Logger::writeToLog(message.title + ": " + message.message);
+            juce::Logger::writeToLog("[USER MESSAGE]" + message.title + ": " + message.message);
             juce::AlertWindow::showMessageBoxAsync(
                 message.severity == AppMessageSeverity::error ? juce::AlertWindow::AlertIconType::WarningIcon
                                                                : juce::AlertWindow::AlertIconType::InfoIcon,
@@ -59,10 +60,13 @@ public:
     }
     ~MainComponent() override 
     {
-        audioEngine.removeStatusListener (this);
-        deviceSelector.reset();
-        pluginListWindow.reset();
+        audioEngine.shutdown();
         pluginWindows.clear();
+        undoManager.clearUndoHistory();
+        devices.clear();
+        midiInput.reset();
+        midiLearnTarget.reset();
+        AppMessageBus::getInstance().onMessage = nullptr;
     };
 
     void paint (juce::Graphics& g) override;
@@ -75,13 +79,12 @@ public:
     MidiTrigger midiTriggerForSoftwareSwitch(int switchNumber);
 private:
     void createPluginGraphViewWithCallbacks();
-    void createDeviceSelectorUI();
     void createPluginListButton();
     void createCustomFXUI();
-    void createDeviceStatusUI();
     void createMasterGainUI();
     void createTitleLabel();
     void createSettingsOverlay();
+    void createUndoRedoButtons();
 
     void tryRemovePluginFromGraphView(juce::AudioProcessorGraph::NodeID nodeId);
     void tryChangePluginOrderFromGraphView(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder);
@@ -91,13 +94,17 @@ private:
     void tryRestorePluginSnapshotFromGraphView(juce::AudioProcessorGraph::NodeID nodeId);
 
     void openPluginListWindow();
+    void closePluginListWindow();
+
+    bool sidebarOpened = false;
+
     juce::UndoManager undoManager;
 
-    AppMessageBus messages;
+    ImageResources resources;
 
-    AudioEngine audioEngine { messages };
+    AudioEngine audioEngine;
 
-    PluginScannerCoordinator pluginScanner { messages };
+    PluginScannerCoordinator pluginScanner;
         
     MidiMappingManager midiMappingManager;
 
@@ -105,9 +112,7 @@ private:
 
     std::unique_ptr<juce::MidiInput> midiInput;
 
-    std::unique_ptr<juce::AudioDeviceSelectorComponent> deviceSelector;
-
-    SettingsOverlayComponent settingsOverlay;
+    SettingsOverlayComponent settingsOverlay { audioEngine };
 
     std::optional<juce::AudioProcessorGraph::NodeID> midiLearnTarget;
 
@@ -115,7 +120,8 @@ private:
     juce::Label titleLabel;
 
     juce::TextButton openPluginListWindowButton;
-    std::unique_ptr<PluginListWindow> pluginListWindow;
+    // std::unique_ptr<PluginListWindow> pluginListWindow;
+    PluginListBoxComponent pluginListBoxComponent;
 
     // juce::TextButton showPluginGraphViewButton;
     PluginGraphViewComponent pluginGraphViewComponent;
@@ -125,6 +131,10 @@ private:
          std::unique_ptr<PluginWindow>> pluginWindows;
 
     juce::ImageButton showSettingsButton;
+
+    juce::ImageButton undoButton;
+    juce::ImageButton redoButton;
+    juce::ImageButton settingsButton;
 
     // Delay controls
     juce::Slider delayTimeSlider;
@@ -140,17 +150,8 @@ private:
     juce::Slider gainSlider;
     juce::Label gainValueLabel;
 
-    // Device status labels
-    juce::Label deviceTypeLabel;
-    juce::Label deviceNameLabel;
-    juce::Label deviceFormatLabel;
-    juce::Label deviceChannelLabel;
-    juce::Label deviceLatencyLabel;
-    juce::Label deviceStatusLabel;
+    void changeListenerCallback (juce::ChangeBroadcaster*) override {};
 
-    double scanProgress = 0.0;
-
-    void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void updateDeviceLabels();
     void updateGainReadout();
     void updateDelayReadout();

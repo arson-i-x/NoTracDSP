@@ -19,14 +19,24 @@ void DirectoryManager::chooseDirectory()
 {
     if (fileChooser)
     {
-        fileChooser->launchAsync(chooserFlags, [this](const juce::FileChooser &chooser)
-                                 {
-            // This block executes ONLY when the user closes the window
-            auto resultFile = chooser.getResult();
+        fileChooser->launchAsync(
+            chooserFlags,
+            [this](const juce::FileChooser &chooser)
+            {
+                // This block executes ONLY when the user closes the window
+                auto resultFile = chooser.getResult();
 
-        selectedDirectory = resultFile;
+                selectedDirectory = resultFile;
 
-        if (onDirectoryChosen)
-            onDirectoryChosen(selectedDirectory); });
+                searchPaths.push_back(selectedDirectory);
+
+                if (onDirectoryChosen)
+                    onDirectoryChosen(selectedDirectory);
+            });
     }
+}
+
+std::vector<juce::File> DirectoryManager::getSearchPaths() const
+{
+    return searchPaths;
 }

@@ -4,10 +4,8 @@
 class PluginListWindow : public juce::DocumentWindow
 {
 public:
-    PluginListWindow(AppMessageBus& msg);
+    PluginListWindow();
     ~PluginListWindow();
     PluginListBoxComponent* getPluginListBox() const;
     void closeButtonPressed() override;
-private:
-    AppMessageBus messages;
 };
