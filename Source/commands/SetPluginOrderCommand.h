@@ -14,6 +14,7 @@ public:
     )
         : audioEngine(engine), newOrder(newOrder)
     {
+        oldOrder = audioEngine.getPluginOrder();
     }
     ~SetPluginOrderCommand() = default;
     bool perform() override;
@@ -23,7 +24,7 @@ public:
 
 private:
     AudioEngine& audioEngine;
-    juce::AudioProcessorGraph::NodeID nodeId;
+
     std::optional<std::vector<juce::AudioProcessorGraph::NodeID>> oldOrder;
     std::vector<juce::AudioProcessorGraph::NodeID> newOrder;
 };

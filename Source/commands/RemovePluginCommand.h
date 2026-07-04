@@ -11,7 +11,6 @@ public:
     RemovePluginCommand(AudioEngine &engine,
                                          juce::AudioProcessorGraph::NodeID nodeId)
     : audioEngine(engine),
-      formatManager(engine.getPluginFormatManager()),
       nodeId(nodeId)
     {
     }
@@ -23,8 +22,7 @@ public:
 
 private:
     AudioEngine& audioEngine;
-    juce::AudioPluginFormatManager& formatManager;
     juce::AudioProcessorGraph::NodeID nodeId;
 
-    std::optional<AudioEngine::PluginSnapshot> removedPlugin;
+    std::optional<PluginSnapshot> removedPlugin;
 };

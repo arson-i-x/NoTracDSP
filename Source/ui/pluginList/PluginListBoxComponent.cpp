@@ -1,6 +1,7 @@
 #include "PluginListBoxComponent.h"
 
-PluginListBoxComponent::PluginListBoxComponent()
+PluginListBoxComponent::PluginListBoxComponent(juce::KnownPluginList& knownPluginList) 
+            : knownPluginList(knownPluginList)
 {
     pluginListBox.setMultipleSelectionEnabled(false);
     pluginListBox.setClickingTogglesRowSelection(false);
@@ -55,14 +56,14 @@ PluginListBoxComponent::PluginListBoxComponent()
     addAndMakeVisible (scanPluginsButton);
 
     loadPluginButton.setButtonText("Load Selected");
-    loadPluginButton.onClick = [this] { loadPlugin(); };
+    loadPluginButton.onClick = [this] { choosePlugin(); };
     addAndMakeVisible(loadPluginButton);
 
     addAndMakeVisible (pluginListBox);
 
     updateScanSettings();
 
-    setPluginList(pluginScanner.knownPluginList);
+    refreshPluginList();
 }
 
 void PluginListBoxComponent::updateScanSettings() 
@@ -73,15 +74,9 @@ void PluginListBoxComponent::updateScanSettings()
     settings.allowAsyncInstantiation = allowAsyncToggle.getToggleState();
 }
 
-PluginListBoxComponent::~PluginListBoxComponent()
+void PluginListBoxComponent::refreshPluginList()
 {
-    setVisible(false);
-}
-
-void PluginListBoxComponent::setPluginList(const juce::KnownPluginList& newList)
-{
-    DBG("Updating plugin list with " + juce::String(newList.getTypes().size()) + " plugins.");
-    model.setPluginList(&newList);
+    DBG("Updating plugin list with " + juce::String(knownPluginList.getTypes().size()) + " plugins.");
     pluginListBox.updateContent();
     repaint();
 }
@@ -98,12 +93,12 @@ void PluginListBoxComponent::scanForPlugins() {
             scanPluginsButton.setButtonText(text);
             scanPluginsButton.setEnabled(enabled);
         },
-        [this](const juce::KnownPluginList& newList)
+        [this]()
         {
-            setPluginList(newList);
+            refreshPluginList();
             AppMessageBus::getInstance().info(
                 "Plugin scan completed", 
-                "Found " + juce::String(newList.getTypes().size()) + " plugins."
+                "Found " + juce::String(knownPluginList.getTypes().size()) + " plugins."
             );
         });
 
@@ -150,51 +145,31 @@ void PluginListBoxComponent::resized() {
     loadPluginButton.setBounds(loadArea.removeFromLeft(160));
 }
 
-AppCommand::Status PluginListBoxComponent::loadPlugin() 
-{
-    auto selectedPlugin = getSelectedPlugin();
-
-    if (!selectedPlugin.ok)
-        return AppCommand::Status::failure(selectedPlugin.error);
-
-    const auto& desc = selectedPlugin.value;
-
-    if (onPluginChosen)
-        onPluginChosen(desc);
-
-    return AppCommand::Status::success();
-}
-
-AppCommand::Result<juce::PluginDescription> PluginListBoxComponent::getSelectedPlugin() 
+void PluginListBoxComponent::choosePlugin() 
 {
     int selectedRow = pluginListBox.getSelectedRow();
 
     if (selectedRow < 0)
-        return AppCommand::Result<juce::PluginDescription>::failure("No plugin selected.");
+        return;
 
-    auto types = model.getPluginDescriptions();
+    const auto& types = model.getPluginDescriptions();
 
     if (selectedRow >= types.size())
-        return AppCommand::Result<juce::PluginDescription>::failure("Selected row is not valid for the plugin list.");
+        return;
 
-    return AppCommand::Result<juce::PluginDescription>::success(types[selectedRow]);
+    if (onPluginChosen)
+        onPluginChosen(types[selectedRow]);
 }
 
 juce::Array<juce::PluginDescription> PluginListModel::getPluginDescriptions() const
     {
-        if (pluginList == nullptr)
-            return {};
-
-        return pluginList->getTypes();
+        return pluginList.getTypes();
     }
 
     
 int PluginListModel::getNumRows()
    {
-        if (pluginList == nullptr)
-            return 0;
-
-        return pluginList->getTypes().size();
+        return pluginList.getTypes().size();
     }
 
 void PluginListModel::paintListBoxItem(int rowNumber,
@@ -204,10 +179,8 @@ void PluginListModel::paintListBoxItem(int rowNumber,
                                         bool rowIsSelected)
 
     {
-        if (pluginList == nullptr)
-            return;
 
-        auto types = pluginList->getTypes();
+        auto types = pluginList.getTypes();
 
         if (rowNumber >= types.size())
             return;
@@ -241,9 +214,3 @@ void PluginListModel::paintListBoxItem(int rowNumber,
     //     g.setFont(juce::Font { juce::FontOptions (14.0f) });
     //     g.drawText(desc.pluginFormatName + " - " + desc.fileOrIdentifier, 4, height / 2, width - 4, height / 2, juce::Justification::centredLeft);
     // }
-
-    
-void PluginListModel::setPluginList(const juce::KnownPluginList* newList)
-{
-    pluginList = newList;
-}

@@ -5,15 +5,14 @@ void PluginWindow::closeButtonPressed()
     setVisible(false);
 }
 
-PluginWindow::PluginWindow(juce::AudioProcessor *processor)
-    : DocumentWindow(processor->getName(),
-                     juce::Colours::black,
-                     DocumentWindow::closeButton)
+PluginWindow::PluginWindow(juce::AudioProcessor& processor)
+    : processor(processor), DocumentWindow(processor.getName(),
+                            juce::Colours::black,
+                            DocumentWindow::closeButton)
 {
-    // if processor is null, the application will crash
-    jassert(processor != nullptr);
+    JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED;
 
-    if (!processor->hasEditor())
+    if (!processor.hasEditor())
     {
         setContentOwned(new juce::Label({}, "This plugin has no editor."), true);
         centreWithSize(300, 120);
@@ -21,11 +20,14 @@ PluginWindow::PluginWindow(juce::AudioProcessor *processor)
         return;
     }
 
-    auto *editor = processor->createEditorAndMakeActive();
+    processor.createEditorAndMakeActive();
+
+    auto* editor = processor.getActiveEditor();
 
     if (editor == nullptr)
     {
-        setContentOwned(new juce::Label({}, "Failed to create plugin editor."), true);
+        AppMessageBus::getInstance().warning("Plugin Editor Error", "The plugin editor could not be created.");
+        setContentOwned(new juce::Label({}, "This plugin has no editor."), true);
         centreWithSize(300, 120);
         setVisible(true);
         return;

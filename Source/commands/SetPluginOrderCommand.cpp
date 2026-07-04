@@ -2,13 +2,6 @@
 
 bool SetPluginOrderCommand::perform()
 {
-    // Store the old order before changing it
-    oldOrder = std::vector<juce::AudioProcessorGraph::NodeID>();
-    for (const auto& plugin : audioEngine.getAudioProcessorGraph().getNodes())
-    {
-        oldOrder->push_back(plugin->nodeID);
-    }
-
     auto status = audioEngine.setPluginOrder(newOrder);
     if (!status.ok)
     {

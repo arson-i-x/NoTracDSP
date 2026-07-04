@@ -5,7 +5,10 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "core/PluginRegistry.h"
 #include "core/AppMessageBus.h"
+#include "core/Result.h"
+#include "core/Status.h"
 
 #include "commands/AppCommand.h"
 
@@ -13,125 +16,124 @@
 #include "customProcessors/GainProcessor.h"
 #include "customProcessors/DelayProcessor.h"
 
+struct DeviceStatus
+{
+    juce::String deviceType = "No device";
+    juce::String deviceName = "No audio device open";
+    juce::String formatText = "Sample rate: - | Buffer size: -";
+    juce::String channelText = "Input: - | Output: -";
+    juce::String latencyText = "Input latency: - | Output latency: -";
+    juce::String statusText = "Initializing...";
+};
+
+struct ActivePlugin
+{
+    juce::AudioProcessorGraph::NodeID nodeId;
+    juce::PluginDescription desc;
+    juce::String name;
+    bool bypassed = false;
+    int chainIndex = -1;
+};
+
+struct PluginSnapshot
+{
+    juce::PluginDescription desc;
+    juce::String name;
+    bool bypassed = false;
+    int chainIndex = -1;
+    juce::MemoryBlock state;
+};
+
 class AudioEngine final : public juce::AudioIODeviceCallback,
+                          public juce::ChangeBroadcaster,
                           private juce::ChangeListener,
-                          private juce::AsyncUpdater,
-                          private juce::ChangeBroadcaster
+                          private juce::AsyncUpdater
 {
 public:
-    struct DeviceStatus
-    {
-        juce::String deviceType = "No device";
-        juce::String deviceName = "No audio device open";
-        juce::String formatText = "Sample rate: - | Buffer size: -";
-        juce::String channelText = "Input: - | Output: -";
-        juce::String latencyText = "Input latency: - | Output latency: -";
-        juce::String statusText = "Initializing...";
-    };
-    struct ActivePluginInfo
-    {
-        juce::AudioProcessorGraph::NodeID nodeId;
-        juce::String name;
-        bool bypassed = false;
-    };
-
-    struct ActivePlugin
-    {
-        juce::AudioProcessorGraph::NodeID nodeId;
-        juce::PluginDescription desc;
-        juce::String name;
-        bool bypassed = false;
-    };
-
-    struct PluginSnapshot {
-        juce::PluginDescription desc;
-        juce::String name;
-        bool bypassed = false;
-        int chainIndex = -1;
-        juce::MemoryBlock state;
-    };
-
     AudioEngine();
     ~AudioEngine() override = default;
 
-    juce::AudioPluginFormatManager& getPluginFormatManager() noexcept { return pluginFormatManager; }
+    juce::AudioDeviceManager &getAudioDeviceManager() noexcept { return audioDeviceManager; }
+    const juce::AudioDeviceManager &getAudioDeviceManager() const noexcept { return audioDeviceManager; }
 
-    juce::AudioDeviceManager& getAudioDeviceManager() noexcept { return audioDeviceManager; }
-    const juce::AudioDeviceManager& getAudioDeviceManager() const noexcept { return audioDeviceManager; }
+    juce::AudioProcessorGraph &getAudioProcessorGraph() noexcept { return audioProcessorGraph; }
+    const juce::AudioProcessorGraph &getAudioProcessorGraph() const noexcept { return audioProcessorGraph; }
 
-    juce::AudioProcessorGraph& getAudioProcessorGraph() noexcept { return audioProcessorGraph; }
-    const juce::AudioProcessorGraph& getAudioProcessorGraph() const noexcept { return audioProcessorGraph; }
-
-    juce::AudioProcessor* getProcessorForNode(juce::AudioProcessorGraph::NodeID nodeId);
+    juce::AudioProcessor *getProcessorForNode(juce::AudioProcessorGraph::NodeID nodeId);
 
     double getSampleRate() const noexcept { return sampleRate; }
     int getBlockSize() const noexcept { return blockSize; }
     int getNumChannels() const noexcept { return numChannels; }
+    const std::vector<juce::AudioProcessorGraph::NodeID> getPluginOrder() const;
 
-    void setMasterGain (float newGain) noexcept;
+    void setMasterGain(float newGain) noexcept;
 
-    void setDelayTimeMs (float ms) noexcept;
+    void setDelayTimeMs(float ms) noexcept;
 
-    void setDelayMix (float mix) noexcept;
+    void setDelayMix(float mix) noexcept;
 
     [[nodiscard]] DeviceStatus getDeviceStatus() const noexcept;
 
-    void addStatusListener (juce::ChangeListener* listener) { addChangeListener (listener); };
-    void removeStatusListener (juce::ChangeListener* listener) { removeChangeListener (listener); };
+    void addStatusListener(juce::ChangeListener *listener) 
+    { juce::MessageManager::callAsync([this, listener]() { addChangeListener(listener); }); };
+    void removeStatusListener(juce::ChangeListener *listener) 
+    { juce::MessageManager::callAsync([this, listener]() { removeChangeListener(listener); }); };
 
-    void audioDeviceAboutToStart (juce::AudioIODevice* device) override;
+    void audioDeviceAboutToStart(juce::AudioIODevice *device) override;
     void audioDeviceStopped() override;
-    void audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
-                                           int numInputChannels,
-                                           float* const* outputChannelData,
-                                           int numOutputChannels,
-                                           int numSamples,
-                                           const juce::AudioIODeviceCallbackContext& context) override;
+    void audioDeviceIOCallbackWithContext(const float *const *inputChannelData,
+                                          int numInputChannels,
+                                          float *const *outputChannelData,
+                                          int numOutputChannels,
+                                          int numSamples,
+                                          const juce::AudioIODeviceCallbackContext &context) override;
+
+    juce::ValueTree createPresetState() const;
 
     // Adds the plugin and returns a ptr to its node for front end
-    AppCommand::Result<juce::AudioProcessorGraph::Node::Ptr> addPlugin(
-        const juce::PluginDescription& desc,
-        juce::AudioPluginFormatManager& formatManager);
+    Result<juce::AudioProcessorGraph::Node::Ptr> addPlugin(const juce::PluginDescription &desc);
 
-    // void swapPlugin(size_t indexA, size_t indexB);
-    std::vector<AudioEngine::ActivePluginInfo> getActivePlugins() const;
-    
-    AppCommand::Result<PluginSnapshot> getPluginSnapshot(juce::AudioProcessorGraph::NodeID nodeId) const;
-    AppCommand::Status removePlugin(juce::AudioProcessorGraph::NodeID nodeId);
-    AppCommand::Status togglePluginBypass(juce::AudioProcessorGraph::NodeID nodeId);
-    AppCommand::Status setPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId, bool shouldBeBypassed);
-    AppCommand::Status setPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder);
-    AppCommand::Status restorePluginSnapshot(const PluginSnapshot& snapshot, juce::AudioPluginFormatManager& formatManager);
+    std::optional<juce::PluginDescription> findPluginByIdentifier(
+        const juce::KnownPluginList &knownPlugins, const juce::String &identifier) const;
 
-    AppCommand::Status canFindPlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
-    AppCommand::Status canSetPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder) const;
-    AppCommand::Status canRestorePluginSnapshot(const PluginSnapshot& snapshot) const;
-    AppCommand::Status canAddPlugin(const juce::PluginDescription& desc) const;
+    Status restorePresetState(const juce::ValueTree& preset);
+    Result<PluginSnapshot> getPluginSnapshot(juce::AudioProcessorGraph::NodeID nodeId) const;
+    Status removePlugin(juce::AudioProcessorGraph::NodeID nodeId);
+    Status togglePluginBypass(juce::AudioProcessorGraph::NodeID nodeId);
+    Status setPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId, bool shouldBeBypassed);
+    Status setPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID> &newOrder);
+    Status restorePluginSnapshot(const PluginSnapshot &snapshot);
+
+    Status canFindPlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
+    Status canSetPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID> &newOrder) const;
+    Status canAddPlugin(const juce::PluginDescription &desc) const;
+    Status canRestorePluginSnapshot(const PluginSnapshot &snapshot) const;
 
     void rebuildGraphConnections();
     bool isPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId) const;
     juce::String getPluginName(juce::AudioProcessorGraph::NodeID nodeId) const;
-    
-    void setPluginName(juce::AudioProcessorGraph::NodeID nodeId, const juce::String& newName);
-    AudioEngine::ActivePluginInfo getActivePluginInfo(juce::AudioProcessorGraph::NodeID nodeId) const;
-    AudioEngine::ActivePlugin getActivePlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
+
+    void setPluginName(juce::AudioProcessorGraph::NodeID nodeId, const juce::String &newName);
+    ActivePlugin getActivePlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
     juce::AudioProcessorGraph::Node::Ptr getNodeForId(juce::AudioProcessorGraph::NodeID nodeId) const;
 
+    void clearPlugins();
+
     void shutdown();
-private: 
+
+private:
     juce::AudioProcessorGraph audioProcessorGraph;
     juce::AudioProcessorGraph::Node::Ptr inputNode;
     juce::AudioProcessorGraph::Node::Ptr outputNode;
 
-    std::vector<ActivePlugin> activePlugins;
+    PluginRegistry pluginRegistry;
 
     juce::AudioDeviceManager audioDeviceManager;
 
-    juce::AudioPluginFormatManager pluginFormatManager;
-    
     DeviceStatus deviceStatus;
 
-    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void changeListenerCallback(juce::ChangeBroadcaster *) override;
+    void closeEditorsForNode(juce::AudioProcessorGraph::NodeID nodeId);
     void handleAsyncUpdate() override;
     void refreshDeviceStatus() noexcept;
     void setPluginInstance(std::unique_ptr<juce::AudioPluginInstance> newPlugin);
@@ -143,6 +145,5 @@ private:
     double sampleRate = 0.0;
     int blockSize = 0;
     int numChannels = 0;
-    bool isStillRegisteredSomewhere = false; // optional flag to track if the singleton is still registered somewhere
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioEngine)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioEngine)
 };

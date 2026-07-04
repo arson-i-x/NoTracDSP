@@ -2,7 +2,8 @@
 
 static juce::MemoryBlock toBlock(const juce::String& s) { return { s.toRawUTF8(), (size_t) s.getNumBytesAsUTF8() }; }
 
-PluginScannerCoordinator::PluginScannerCoordinator()
+PluginScannerCoordinator::PluginScannerCoordinator(juce::KnownPluginList& knownPluginList) : 
+    knownPluginList(knownPluginList)
 {
     auto appData = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("NoTracDSP");
     appData.createDirectory();
@@ -22,10 +23,10 @@ void PluginScannerCoordinator::saveKnownPluginList()
 }
 
 // 1. THIS KICKS OFF THE CHAIN WITHOUT BLOCKING
-void PluginScannerCoordinator::startScan(ScanSettings& settings, ButtonStateFn cb, DoneCallbackFn doneCb) 
+void PluginScannerCoordinator::startScan(ScanSettings& settings, ButtonStateFn uiCb, DoneCallbackFn doneCb) 
 {
     currentFileIndex = 0;
-    onButtonState = cb;
+    onButtonState = uiCb;
     onDone = doneCb;
     pendingSettings = settings;
 
@@ -258,6 +259,5 @@ void PluginScannerCoordinator::finish()
     setUi("Scan Plugins", true);
 
     if (!onDone) return;
-    auto cb = onDone;
-    juce::MessageManager::callAsync([cb, this] { cb(knownPluginList); });
+    juce::MessageManager::callAsync([this] { onDone(); });
 }

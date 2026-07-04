@@ -2,23 +2,19 @@
 
 bool AddPluginCommand::perform()
 {
-    if (desc.numInputChannels <= 0)
-    {
-        return false;
-    }
-
-    auto result = audioEngine.addPlugin(desc, formatManager);
+    auto result = audioEngine.addPlugin(desc);
 
     if (!result.ok)
         return false;
 
+    audioEngine.sendChangeMessage(); // Notify listeners that a new plugin has been added
     addedNodeId = result.value->nodeID;
     return true;
 }
 
 bool AddPluginCommand::undo()
 {
-    if (!addedNodeId.has_value())
+    if (!addedNodeId)
     {
         return false;
     }
@@ -26,6 +22,7 @@ bool AddPluginCommand::undo()
     if (!status.ok)
         return false;
 
+    audioEngine.sendChangeMessage(); // Notify listeners that the plugin has been removed
     return true;
 }
 

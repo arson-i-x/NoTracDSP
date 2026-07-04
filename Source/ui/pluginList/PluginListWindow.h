@@ -4,7 +4,7 @@
 class PluginListWindow : public juce::DocumentWindow
 {
 public:
-    PluginListWindow();
+    PluginListWindow(juce::KnownPluginList& knownPluginList);
     ~PluginListWindow();
     PluginListBoxComponent* getPluginListBox() const;
     void closeButtonPressed() override;

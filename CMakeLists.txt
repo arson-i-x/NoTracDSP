@@ -22,12 +22,14 @@ target_sources (NoTracDSP
         # core source files
         Source/core/AudioEngine.cpp        
         Source/core/DirectoryManager.cpp
+        Source/core/PresetManager.cpp
 
         # command source files
         Source/commands/AddPluginCommand.cpp
         Source/commands/RemovePluginCommand.cpp
         Source/commands/BypassPluginCommand.cpp
         Source/commands/SetPluginOrderCommand.cpp
+        Source/commands/ChangePresetCommand.cpp
 
         # custom processor source files
         Source/customProcessors/DelayProcessor.cpp
@@ -38,6 +40,7 @@ target_sources (NoTracDSP
         Source/ui/main/PluginGraphViewComponent.cpp
         Source/ui/main/SettingsOverlayComponent.cpp
         Source/ui/main/MainComponent.cpp
+        Source/ui/main/PresetManagerComponent.cpp
 
         Source/ui/pluginList/PluginListBoxComponent.cpp
         Source/ui/pluginList/PluginListWindow.cpp
@@ -57,6 +60,7 @@ juce_add_binary_data(NoTracDSPBinaryData
         Assets/redo.png
         Assets/bypass.png
         Assets/settings.png
+        Assets/save.png
 )
 
 target_compile_definitions (NoTracDSP
@@ -67,10 +71,12 @@ target_compile_definitions (NoTracDSP
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_PLUGINHOST_VST3=1
+        JUCE_MODAL_LOOPS_PERMITTED=1
         JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:NoTracDSP,JUCE_PRODUCT_NAME>"
         JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:NoTracDSP,JUCE_VERSION>"
         $<$<CONFIG:Debug>:JUCE_DEBUG=1>
-        $<$<CONFIG:Debug>:JUCE_CHECK_MEMORY_LEAKS=1>)
+        $<$<CONFIG:Debug>:JUCE_CHECK_MEMORY_LEAKS=1>
+)
 
 target_compile_features (NoTracDSP PRIVATE cxx_std_20)
 

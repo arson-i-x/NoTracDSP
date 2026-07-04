@@ -8,6 +8,17 @@ MidiTrigger MainComponent::midiTriggerForSoftwareSwitch(int switchNumber)
         19 + switchNumber};
 }
 
+void MainComponent::createPresetManagerBox()
+{
+    presetManagerComponent.onPresetChanged = [this](const juce::ValueTree& newPreset)
+    {
+        audioEngine.restorePresetState(newPreset);
+        refreshGraphView();
+    };
+    audioEngine.addStatusListener(&presetManagerComponent); // Listen for changes in the audio engine state
+    addAndMakeVisible(presetManagerComponent);
+}
+
 void MainComponent::createUndoRedoButtons() 
 {
     auto undoImage = resources.getIcon(IconType::Undo);
@@ -163,8 +174,14 @@ void MainComponent::tryAddPluginFromList(const juce::PluginDescription &desc)
         return;
     }
 
+    undoManager.beginNewTransaction("Added Plugin: " + desc.name); 
+
     bool performed = undoManager.perform(
-        new AddPluginCommand(audioEngine, desc));
+        new AddPluginCommand(
+            audioEngine, 
+            desc
+        )
+    );
 
     if (!performed)
     {
@@ -187,10 +204,6 @@ void MainComponent::closePluginListWindow()
 
 void MainComponent::openPluginListWindow()
 {
-    // pluginListWindow = std::make_unique<PluginListWindow>(messages);
-
-    // pluginListBoxComponent = pluginListWindow->getPluginListBox();
-
     sidebarOpened = true;
 
     pluginListBoxComponent.onPluginChosen = 
@@ -213,9 +226,16 @@ void MainComponent::tryChangePluginBypassStateFromGraphView(juce::AudioProcessor
         messages.warning("Cannot bypass plugin", validation.error);
         return;
     }
+    
+    undoManager.beginNewTransaction("Changed Bypass State for Plugin: " + audioEngine.getPluginName(nodeId)); 
 
     const bool performed = undoManager.perform(
         new BypassPluginCommand(audioEngine, nodeId));
+
+    if (!performed)
+    {
+        messages.error("Failed to change bypass state", "An unknown error occurred while changing the bypass state.");
+    }
 
     refreshGraphView();
 }
@@ -224,15 +244,22 @@ void MainComponent::tryChangePluginOrderFromGraphView(const std::vector<juce::Au
 {
     auto validation = audioEngine.canSetPluginOrder(newOrder);
 
-    auto &messages = AppMessageBus::getInstance();
+    auto& messages = AppMessageBus::getInstance();
     if (!validation.ok)
     {
         messages.warning("Cannot reorder plugins", validation.error);
         return;
     }
 
+    undoManager.beginNewTransaction("Changed Plugin Order"); 
+
     const bool performed = undoManager.perform(
         new SetPluginOrderCommand(audioEngine, newOrder));
+
+    if (!performed)
+    {
+        messages.error("Failed to change plugin order", "An error occurred while changing the plugin order.");
+    }
 
     refreshGraphView();
 }
@@ -250,9 +277,17 @@ void MainComponent::tryRemovePluginFromGraphView(juce::AudioProcessorGraph::Node
 
     if (pluginWindows.find(nodeId) != pluginWindows.end())
     {
+        auto pluginWindow = pluginWindows[nodeId].get();
+        auto editor = pluginWindow->getContentComponent();
+        
+        editor->exitModalState(0);
+        pluginWindow->exitModalState(0);
+
         pluginWindows[nodeId]->setVisible(false);
         pluginWindows.erase(nodeId);
     }
+
+    undoManager.beginNewTransaction("Removed Plugin: " + audioEngine.getPluginName(nodeId)); 
 
     const bool performed = undoManager.perform(
         new RemovePluginCommand(audioEngine, nodeId)
@@ -393,8 +428,9 @@ void MainComponent::showPluginWindow(juce::AudioProcessorGraph::NodeID nodeId)
     if (auto *processor = audioEngine.getProcessorForNode(nodeId))
     {
         pluginWindows[nodeId].reset();
+
         pluginWindows[nodeId] =
-            std::make_unique<PluginWindow>(processor);
+            std::make_unique<PluginWindow>(*processor);
 
         pluginWindows[nodeId]->setVisible(true);
         pluginWindows[nodeId]->toFront(true);
@@ -450,6 +486,11 @@ void MainComponent::resized()
     // Hide the plugin graph view button for now, as the plugin graph view is always visible.
     // auto showPluginGraphViewButtonArea = mainArea.removeFromTop (32);
     // showPluginGraphViewButton.setBounds (showPluginGraphViewButtonArea);
+
+    // create a preset manager box at the top of the main area
+    auto presetManagerArea = mainArea.removeFromTop(80);
+    presetManagerComponent.setBounds(presetManagerArea);
+
 
     // create an mainArea below the device status labels for the delay and gain controls
     auto controlArea = mainArea.removeFromTop(250);

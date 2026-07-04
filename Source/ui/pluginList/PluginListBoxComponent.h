@@ -4,15 +4,17 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "scanner/PluginScannerCoordinator.h"
 #include "core/DirectoryManager.h"
+#include "core/Result.h"
+#include "core/Status.h"
 #include "commands/AppCommand.h"
 
 class PluginListModel : public juce::ListBoxModel
 {
 public:
-    PluginListModel() = default;
-
-    ~PluginListModel() = default;
-
+    PluginListModel(juce::KnownPluginList& pluginList) : 
+        pluginList(pluginList)
+    {
+    };
     int getNumRows() override;
 
     void paintListBoxItem(int rowNumber,
@@ -21,12 +23,12 @@ public:
                           int height,
                           bool rowIsSelected) override;
 
-    void setPluginList(const juce::KnownPluginList* newList);
-
     juce::Array<juce::PluginDescription> getPluginDescriptions() const;
 
+    juce::KnownPluginList& getPluginList() const { return pluginList; }
+
 private:
-    const juce::KnownPluginList* pluginList = nullptr;
+    juce::KnownPluginList& pluginList;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginListModel)
 };
@@ -34,21 +36,25 @@ private:
 class PluginListBoxComponent : public juce::Component
 {
 public:
-    PluginListBoxComponent();
-    ~PluginListBoxComponent();
-    void scanForPlugins();
+    PluginListBoxComponent(juce::KnownPluginList& knownPluginList);
+
     void resized() override;
-    AppCommand::Status loadPlugin();
+
+    juce::KnownPluginList& getKnownPluginList() const { return knownPluginList; }
 
     std::function<void(const juce::PluginDescription&)> onPluginChosen;
 
 private:
+    void choosePlugin();
+    void scanForPlugins();
     void updateScanSettings();
-    void setPluginList(const juce::KnownPluginList& newList);
-    AppCommand::Result<juce::PluginDescription> getSelectedPlugin();
+    void refreshPluginList();
+    std::optional<juce::PluginDescription> getSelectedPlugin();
 
-    PluginListModel model;
-    juce::ListBox pluginListBox;
+    juce::KnownPluginList& knownPluginList;
+
+    PluginListModel model { knownPluginList };
+    juce::ListBox pluginListBox { "Plugin List", &model };
 
     DirectoryManager directoryManager;
 
@@ -66,12 +72,12 @@ private:
 
     juce::ImageButton closeButton;
 
-    PluginScannerCoordinator pluginScanner;
+    PluginScannerCoordinator pluginScanner { knownPluginList };
 
     // State variables for plugin scanning
     juce::File selectedPluginDirectory;
 
-    juce::TextButton loadPluginButton;
+    juce::TextButton loadPluginButton ;
 
     PluginScannerCoordinator::ScanSettings settings;
 

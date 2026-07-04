@@ -1,8 +1,8 @@
 #include "BypassPluginCommand.h"
 
 BypassPluginCommand::BypassPluginCommand(AudioEngine &engine,
-                                         juce::AudioProcessorGraph::NodeID nodeId): audioEngine(engine),
-                                                                                   nodeId(nodeId)
+                                         const juce::AudioProcessorGraph::NodeID nodeId): audioEngine(engine),
+                                                                                         nodeId(nodeId)
 {
     oldState = audioEngine.isPluginBypassed(nodeId);
     newState = !oldState;
@@ -15,7 +15,9 @@ bool BypassPluginCommand::perform()
 
 bool BypassPluginCommand::undo()
 {
-    return audioEngine.setPluginBypassed(nodeId, oldState).ok;
+    auto status = audioEngine.setPluginBypassed(nodeId, oldState);
+    DBG ("Undo BypassPluginCommand: " + (status.ok ? "Success" : "Failure: " + status.error));
+    return status.ok;
 }
 
 juce::String BypassPluginCommand::getName() const

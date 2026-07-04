@@ -22,7 +22,7 @@ public:
         // 3. Register it globally. JUCE does not take ownership of this pointer.
         juce::Logger::setCurrentLogger(fileLogger.get());
 
-        mainWindow.reset (new MainWindow (getApplicationName()));
+        mainWindow = std::make_unique<MainWindow>(getApplicationName());
     }
 
     void shutdown() override

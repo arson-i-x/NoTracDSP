@@ -7,6 +7,7 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 
 #include "ui/PluginWindow.h"
+#include "PresetManagerComponent.h"
 #include "PluginGraphViewComponent.h"
 #include "SettingsOverlayComponent.h"
 
@@ -15,6 +16,8 @@
 #include "core/MidiMapping.h"
 #include "core/MidiMappingManager.h"
 #include "core/AppMessageBus.h"
+#include "core/Result.h"
+#include "core/Status.h"
 
 #include "commands/BypassPluginCommand.h"
 #include "commands/AddPluginCommand.h"
@@ -46,6 +49,7 @@ public:
         openFirstMidiInput();
         updateGainReadout();
         updateDelayReadout();
+        createPresetManagerBox();
         setSize (1440, 900);
 
         AppMessageBus::getInstance().onMessage = [this](const AppMessage& message)
@@ -85,6 +89,7 @@ private:
     void createTitleLabel();
     void createSettingsOverlay();
     void createUndoRedoButtons();
+    void createPresetManagerBox();
 
     void tryRemovePluginFromGraphView(juce::AudioProcessorGraph::NodeID nodeId);
     void tryChangePluginOrderFromGraphView(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder);
@@ -100,11 +105,11 @@ private:
 
     juce::UndoManager undoManager;
 
+    PresetManagerComponent presetManagerComponent { audioEngine, undoManager };
+
     ImageResources resources;
 
     AudioEngine audioEngine;
-
-    PluginScannerCoordinator pluginScanner;
         
     MidiMappingManager midiMappingManager;
 
@@ -121,7 +126,7 @@ private:
 
     juce::TextButton openPluginListWindowButton;
     // std::unique_ptr<PluginListWindow> pluginListWindow;
-    PluginListBoxComponent pluginListBoxComponent;
+    PluginListBoxComponent pluginListBoxComponent { audioEngine.knownPluginList };
 
     // juce::TextButton showPluginGraphViewButton;
     PluginGraphViewComponent pluginGraphViewComponent;

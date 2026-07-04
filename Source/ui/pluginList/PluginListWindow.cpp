@@ -1,4 +1,5 @@
 #include "PluginListWindow.h"
+#include "core/AudioEngine.h"
 
 void PluginListWindow::closeButtonPressed()
 {
@@ -10,12 +11,12 @@ PluginListWindow::~PluginListWindow()
     setVisible(false);
 }
 
-PluginListWindow::PluginListWindow()
+PluginListWindow::PluginListWindow(juce::KnownPluginList& knownPluginList)
     : DocumentWindow("Plugin List",
                      juce::Colours::black,
                      DocumentWindow::closeButton)
 {
-    setContentOwned(new PluginListBoxComponent(), true);
+    setContentOwned(new PluginListBoxComponent(knownPluginList), true);
     centreWithSize(700, 1000);
     setVisible(true);
 }

@@ -5,16 +5,14 @@
 #include <filesystem>
 #include <string>
 #include "core/AppMessageBus.h"
+#include "core/AudioEngine.h"
 
 class PluginScannerCoordinator : public juce::ChildProcessCoordinator
 {
 public:
     using ButtonStateFn = std::function<void(const juce::String& text, bool enabled)>;
 
-    using DoneCallbackFn = std::function<void(const juce::KnownPluginList& newList)>;
-
-    // Core plugin listing states
-    juce::KnownPluginList knownPluginList;
+    using DoneCallbackFn = std::function<void()>;
 
     // Target tracking locations
     juce::File deadMansPedalFile;
@@ -30,18 +28,15 @@ public:
         bool allowAsyncInstantiation = false;
     };
 
-    PluginScannerCoordinator();
+    PluginScannerCoordinator(juce::KnownPluginList& knownPluginList);
     ~PluginScannerCoordinator() override = default;
 
     // Kicks off the asynchronous queue loop
     void startScan(
         ScanSettings& settings, 
-        ButtonStateFn cb = nullptr,
+        ButtonStateFn uiCb = nullptr,
         DoneCallbackFn doneCb = nullptr
     );
-
-    const juce::KnownPluginList& getKnownPlugins() const;
-
 private:
     // JUCE ChildProcessCoordinator overrides
     void handleMessageFromWorker(const juce::MemoryBlock& mb) override;
@@ -72,6 +67,9 @@ private:
     // Callback types for updating UI component layers
     ButtonStateFn onButtonState;
     DoneCallbackFn onDone;
+
+    // Core plugin listing states
+    juce::KnownPluginList& knownPluginList;
 
     juce::String currentlyScanningPlugin;
     bool scanTimedOut = false;

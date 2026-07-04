@@ -7,15 +7,24 @@
 
 class AddPluginCommand : public AppCommand
 {
+private:
+    // references to the audio engine and format manager
+    AudioEngine& audioEngine;
+
+    // store a copy of the plugin description to be added
+    const juce::PluginDescription desc;
+
+    // store the node ID of the added plugin for undo purposes 
+    // which could be nullptr if the plugin was not added successfully
+    std::optional<juce::AudioProcessorGraph::NodeID> addedNodeId;
+
 public:
     AddPluginCommand(AudioEngine& engine,
-                     juce::PluginDescription desc)
+                     const juce::PluginDescription& desc)
         : audioEngine(engine),
-          formatManager(engine.getPluginFormatManager()),
-          desc(std::move(desc))
+          desc(desc)
     {
     }
-
     bool perform() override;
 
     bool undo() override;
@@ -25,11 +34,4 @@ public:
     juce::String getName() const override;
 
     std::optional<juce::AudioProcessorGraph::NodeID> getAddedNodeId() const;
-
-private:
-    AudioEngine& audioEngine;
-    juce::AudioPluginFormatManager& formatManager;
-    juce::PluginDescription desc;
-
-    std::optional<juce::AudioProcessorGraph::NodeID> addedNodeId;
 };

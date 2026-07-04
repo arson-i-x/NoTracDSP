@@ -25,7 +25,7 @@ bool RemovePluginCommand::undo()
         return false;
     }
 
-    audioEngine.restorePluginSnapshot(*removedPlugin, formatManager);
+    audioEngine.restorePluginSnapshot(*removedPlugin);
     return true;
 }
 

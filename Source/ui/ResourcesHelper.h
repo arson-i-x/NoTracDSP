@@ -1,3 +1,4 @@
+#pragma once
 #include "BinaryData.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -7,6 +8,7 @@ enum class IconType
     Redo,
     Remove,
     Bypass,
+    SavePreset,
     Settings
 };
 
@@ -26,6 +28,11 @@ public:
                 return juce::ImageCache::getFromMemory(
                     BinaryData::redo_png,
                     BinaryData::redo_pngSize);
+
+            case IconType::SavePreset:
+                return juce::ImageCache::getFromMemory(
+                    BinaryData::save_png,
+                    BinaryData::save_pngSize);
 
             // case IconType::Remove:
             //     return juce::ImageCache::getFromMemory(
