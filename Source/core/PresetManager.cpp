@@ -23,8 +23,6 @@ PresetList<juce::String> PresetManager::getPresets() const
 
 PresetManager::~PresetManager()
 {
-    removeAllChangeListeners();             // Remove all listeners to prevent dangling pointers
-    audioEngine.removeStatusListener(this); // Remove listener when PresetManager is destroyed to prevent dangling pointers
 }
 
 void PresetManager::loadPresets()
@@ -129,39 +127,4 @@ Status PresetManager::setCurrentPreset(int selectedIndex)
     sendChangeMessage(); // Notify listeners that the preset has changed
 
     return Status::success();
-}
-
-juce::ValueTree PresetManager::createPresetState(const juce::String& presetName) const
-{     
-    juce::ValueTree preset("NoTracPreset");
-    juce::ValueTree chain("PluginChain");
-
-    preset.setProperty("name", presetName, nullptr);
-
-    for (const auto& plugin : audioEngine.getActivePlugins())
-    {
-        auto* node = audioEngine.getAudioProcessorGraph().getNodeForId(plugin.nodeId);
-
-        if (node == nullptr || node->getProcessor() == nullptr)
-            continue;
-
-        auto* processor = node->getProcessor();
-
-        juce::MemoryBlock state;
-        processor->getStateInformation(state);
-
-        juce::ValueTree p("Plugin");
-
-        p.setProperty("name", plugin.name, nullptr);
-        p.setProperty("identifier", plugin.desc.createIdentifierString(), nullptr);
-        p.setProperty("format", plugin.desc.pluginFormatName, nullptr);
-        p.setProperty("file", plugin.desc.fileOrIdentifier, nullptr);
-        p.setProperty("bypassed", plugin.bypassed, nullptr);
-        p.setProperty("stateBase64", state.toBase64Encoding(), nullptr);
-
-        chain.addChild(p, -1, nullptr);
-    }
-
-    preset.addChild(chain, -1, nullptr);
-    return preset;
 }

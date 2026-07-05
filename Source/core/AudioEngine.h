@@ -6,6 +6,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "core/PluginRegistry.h"
+#include "core/PluginGraphModel.h"
 #include "core/AppMessageBus.h"
 #include "core/Result.h"
 #include "core/Status.h"
@@ -26,15 +27,6 @@ struct DeviceStatus
     juce::String statusText = "Initializing...";
 };
 
-struct ActivePlugin
-{
-    juce::AudioProcessorGraph::NodeID nodeId;
-    juce::PluginDescription desc;
-    juce::String name;
-    bool bypassed = false;
-    int chainIndex = -1;
-};
-
 struct PluginSnapshot
 {
     juce::PluginDescription desc;
@@ -53,18 +45,13 @@ public:
     AudioEngine();
     ~AudioEngine() override = default;
 
-    juce::AudioDeviceManager &getAudioDeviceManager() noexcept { return audioDeviceManager; }
-    const juce::AudioDeviceManager &getAudioDeviceManager() const noexcept { return audioDeviceManager; }
-
-    juce::AudioProcessorGraph &getAudioProcessorGraph() noexcept { return audioProcessorGraph; }
-    const juce::AudioProcessorGraph &getAudioProcessorGraph() const noexcept { return audioProcessorGraph; }
-
     juce::AudioProcessor *getProcessorForNode(juce::AudioProcessorGraph::NodeID nodeId);
 
     double getSampleRate() const noexcept { return sampleRate; }
     int getBlockSize() const noexcept { return blockSize; }
     int getNumChannels() const noexcept { return numChannels; }
     const std::vector<juce::AudioProcessorGraph::NodeID> getPluginOrder() const;
+    const std::vector<ActivePlugin>& getActivePluginsInfo() const noexcept;
 
     void setMasterGain(float newGain) noexcept;
 
@@ -102,7 +89,7 @@ public:
     Status togglePluginBypass(juce::AudioProcessorGraph::NodeID nodeId);
     Status setPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId, bool shouldBeBypassed);
     Status setPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID> &newOrder);
-    Status restorePluginSnapshot(const PluginSnapshot &snapshot);
+    Result<juce::AudioProcessorGraph::Node::Ptr> restorePluginSnapshot(const PluginSnapshot &snapshot);
 
     Status canFindPlugin(juce::AudioProcessorGraph::NodeID nodeId) const;
     Status canSetPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID> &newOrder) const;
@@ -121,12 +108,29 @@ public:
 
     void shutdown();
 
+    juce::AudioDeviceManager &getAudioDeviceManager() noexcept { return audioDeviceManager; }
+    const juce::AudioDeviceManager &getAudioDeviceManager() const noexcept { return audioDeviceManager; }
+
+    juce::AudioProcessorGraph &getAudioProcessorGraph() noexcept { return audioProcessorGraph; }
+    const juce::AudioProcessorGraph &getAudioProcessorGraph() const noexcept { return audioProcessorGraph; }
+
+    PluginRegistry &getPluginRegistry() noexcept { return pluginRegistry; }
+    const PluginRegistry &getPluginRegistry() const noexcept { return pluginRegistry; }
+
+    juce::KnownPluginList &getKnownPluginList() noexcept { return pluginRegistry.getKnownPluginList(); }
+    const juce::KnownPluginList &getKnownPluginList() const noexcept { return pluginRegistry.getKnownPluginList(); }
+
+    PluginGraphModel &getPluginGraphModel() noexcept { return pluginGraphModel; }
+    const PluginGraphModel &getPluginGraphModel() const noexcept { return pluginGraphModel; }
+
 private:
     juce::AudioProcessorGraph audioProcessorGraph;
     juce::AudioProcessorGraph::Node::Ptr inputNode;
     juce::AudioProcessorGraph::Node::Ptr outputNode;
 
     PluginRegistry pluginRegistry;
+
+    PluginGraphModel pluginGraphModel;
 
     juce::AudioDeviceManager audioDeviceManager;
 

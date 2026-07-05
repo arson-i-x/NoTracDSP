@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -7,16 +9,19 @@
 struct PluginGraphItem
 {
     juce::AudioProcessorGraph::NodeID nodeId;
-    juce::String name;
+    juce::PluginDescription desc;
+    juce::String displayName;
+    bool bypassed = false;
     juce::Rectangle<int> bounds;
     juce::Rectangle<int> removeButtonBounds;
-    bool bypassed = false;
 };
 
 class PluginGraphViewComponent : public juce::Component
 {
 public:
-    PluginGraphViewComponent();
+    PluginGraphViewComponent() = default;
+
+    void setPlugins(const std::vector<PluginGraphItem>& plugins);
 
     std::function<void(juce::AudioProcessorGraph::NodeID)> onPluginDoubleClicked;
     std::function<void(const std::vector<juce::AudioProcessorGraph::NodeID>&)> onOrderChanged;
@@ -24,7 +29,6 @@ public:
     std::function<void(juce::AudioProcessorGraph::NodeID)> onPluginRemoved;
     std::function<void(juce::AudioProcessorGraph::NodeID)> onMidiMapRequested;
 
-    void setPlugins(const std::vector<PluginGraphItem>& newItems);
     void paint(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& event) override;
@@ -34,13 +38,11 @@ public:
     void mouseUp(const juce::MouseEvent& event) override;
     int getInsertIndexForX(int x) const;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
-    juce::AudioProcessorGraph::NodeID* getSelectedPluginId() const;
-
 
 private:
     std::vector<PluginGraphItem> items;
 
-    std::unique_ptr<juce::AudioProcessorGraph::NodeID> selectedPluginId;
+    std::optional<juce::AudioProcessorGraph::NodeID> selectedPluginId;
     int draggingIndex = -1;
     int originalDragIndex = -1;
     int hoveredIndex = -1;
@@ -94,8 +96,10 @@ private:
             return;
         DBG("NEW UI ORDER:");
         for (const auto& item : items)
-            DBG(item.name);
+            DBG(item.displayName);
+
         std::vector<juce::AudioProcessorGraph::NodeID> newOrder;
+        newOrder.reserve(items.size());
 
         for (const auto& item : items)
             newOrder.push_back(item.nodeId);

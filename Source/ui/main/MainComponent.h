@@ -105,11 +105,11 @@ private:
 
     juce::UndoManager undoManager;
 
+    AudioEngine audioEngine;
+
     PresetManagerComponent presetManagerComponent { audioEngine, undoManager };
 
     ImageResources resources;
-
-    AudioEngine audioEngine;
         
     MidiMappingManager midiMappingManager;
 
@@ -126,7 +126,7 @@ private:
 
     juce::TextButton openPluginListWindowButton;
     // std::unique_ptr<PluginListWindow> pluginListWindow;
-    PluginListBoxComponent pluginListBoxComponent { audioEngine.knownPluginList };
+    PluginListBoxComponent pluginListBoxComponent { audioEngine.getKnownPluginList() };
 
     // juce::TextButton showPluginGraphViewButton;
     PluginGraphViewComponent pluginGraphViewComponent;

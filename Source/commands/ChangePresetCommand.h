@@ -12,7 +12,8 @@ private:
 public:
     ChangePresetCommand(
         PresetManager& manager, 
-        int presetId
+        int presetId,
+        juce::ValueTree previousState
     );
 
     bool perform() override;

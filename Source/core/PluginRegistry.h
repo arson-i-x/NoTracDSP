@@ -1,19 +1,19 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "core/Result.h"
 
 class PluginRegistry
 {
 private:
     juce::KnownPluginList knownPluginList;
     juce::AudioPluginFormatManager pluginFormatManager;
-    std::vector<ActivePlugin> activePlugins;
 
 public:
-    PluginRegistry();
-
-    Result<juce::AudioProcessorGraph::Node::Ptr> addPlugin(
-    const juce::PluginDescription& desc)
+    Result<std::unique_ptr<juce::AudioProcessor>> createPluginInstance(
+        const juce::PluginDescription& desc,
+        double sampleRate,
+        int blockSize)
     {
         juce::String error;
 
@@ -26,30 +26,18 @@ public:
         if (!plugin)
         {
             DBG("Failed to load plugin: " + error);
-            return Result<juce::AudioProcessorGraph::Node::Ptr>::failure("Failed to load plugin: " + error);
+            return Result<std::unique_ptr<juce::AudioProcessor>>::failure("Failed to load plugin: " + error);
         }
 
-        auto node = audioProcessorGraph.addNode(std::move(plugin));
-        
-        if (!node)
-        {
-            DBG("Failed to add plugin node to graph.");
-            return Result<juce::AudioProcessorGraph::Node::Ptr>
-                            ::failure("Failed to add plugin node to graph.");
-        }
+        return Result<std::unique_ptr<juce::AudioProcessor>>::success(std::move(plugin));
+    }
 
-        activePlugins.push_back({
-            node->nodeID,
-            desc,
-            desc.name,
-            node->isBypassed(),
-            static_cast<int>(activePlugins.size())
-        });
-
-        rebuildGraphConnections();
-
-        return Result<juce::AudioProcessorGraph::Node::Ptr>
-                        ::success(node);
+    Result<std::unique_ptr<juce::AudioProcessor>> getPluginInstance(
+        const juce::PluginDescription& desc,
+        double sampleRate,
+        int blockSize)
+    {
+        return createPluginInstance(desc, sampleRate, blockSize);
     }
 
 

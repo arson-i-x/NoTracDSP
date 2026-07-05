@@ -25,7 +25,11 @@ bool RemovePluginCommand::undo()
         return false;
     }
 
-    audioEngine.restorePluginSnapshot(*removedPlugin);
+    auto restored = audioEngine.restorePluginSnapshot(*removedPlugin);
+    if (!restored.ok || restored.value == nullptr)
+        return false;
+
+    nodeId = restored.value->nodeID;
     return true;
 }
 

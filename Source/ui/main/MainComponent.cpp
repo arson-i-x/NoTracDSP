@@ -19,6 +19,25 @@ void MainComponent::createPresetManagerBox()
     addAndMakeVisible(presetManagerComponent);
 }
 
+void MainComponent::refreshGraphView()
+{
+    std::vector<PluginGraphItem> pluginItems;
+    const auto& activePlugins = audioEngine.getActivePluginsInfo();
+    pluginItems.reserve(activePlugins.size());
+
+    for (const auto& plugin : activePlugins)
+    {
+        pluginItems.push_back(PluginGraphItem{
+            plugin.nodeId,
+            plugin.desc,
+            plugin.displayName,
+            plugin.bypassed,
+        });
+    }
+
+    pluginGraphViewComponent.setPlugins(pluginItems);
+}
+
 void MainComponent::createUndoRedoButtons() 
 {
     auto undoImage = resources.getIcon(IconType::Undo);
@@ -353,6 +372,8 @@ void MainComponent::createPluginGraphViewWithCallbacks()
     pluginGraphViewComponent.onMidiMapRequested =
         [this](juce::AudioProcessorGraph::NodeID nodeId)
     { tryMidiMapPluginFromGraphView(nodeId); };
+
+    refreshGraphView();
 }
 
 void MainComponent::openFirstMidiInput()
@@ -380,40 +401,6 @@ void MainComponent::openFirstMidiInput()
     midiInput->start();
 
     DBG("Opened MIDI input: " + device.name);
-}
-
-void MainComponent::refreshGraphView()
-{
-    auto activePlugins = audioEngine.getActivePlugins();
-
-    DBG("Refreshing graph view with " + juce::String(activePlugins.size()) + " active plugins.");
-
-    std::vector<PluginGraphItem> items;
-
-    int x = 40;
-    int y = 80;
-    int width = 140;
-    int height = 60;
-    int gap = 50;
-
-    DBG("Active plugins:");
-    DBG("Name | Bypassed");
-    DBG("-------------------");
-
-    for (const auto &plugin : activePlugins)
-    {
-        items.push_back({plugin.nodeId,
-                         plugin.name,
-                         juce::Rectangle<int>(x, y, width, height),
-                         juce::Rectangle<int>(x + width - 20, y, 20, 20), // remove button bounds
-                         plugin.bypassed});
-
-        DBG("Plugin: " + plugin.name + ", Bypassed: " + (plugin.bypassed ? "Yes" : "No") + ")");
-
-        x += width + gap;
-    }
-
-    pluginGraphViewComponent.setPlugins(items);
 }
 
 void MainComponent::showPluginWindow(juce::AudioProcessorGraph::NodeID nodeId)

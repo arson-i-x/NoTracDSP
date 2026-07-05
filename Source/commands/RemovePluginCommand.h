@@ -22,7 +22,7 @@ public:
 
 private:
     AudioEngine& audioEngine;
-    juce::AudioProcessorGraph::NodeID nodeId;
+  juce::AudioProcessorGraph::NodeID nodeId;
 
     std::optional<PluginSnapshot> removedPlugin;
 };

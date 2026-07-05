@@ -1,13 +1,23 @@
 #include "PluginGraphViewComponent.h"
 
-PluginGraphViewComponent::PluginGraphViewComponent()
-{
-    setMouseCursor(juce::MouseCursor::PointingHandCursor);
-}
+#include <algorithm>
 
-void PluginGraphViewComponent::setPlugins(const std::vector<PluginGraphItem> &newItems)
+void PluginGraphViewComponent::setPlugins(const std::vector<PluginGraphItem>& plugins)
 {
-    items = newItems;
+    items = plugins;
+
+    if (selectedPluginId.has_value())
+    {
+        const bool stillExists = std::any_of(items.begin(), items.end(),
+            [this](const PluginGraphItem& item)
+            {
+                return item.nodeId == *selectedPluginId;
+            });
+
+        if (!stillExists)
+            selectedPluginId.reset();
+    }
+
     layoutItems();
     repaint();
 }
@@ -16,7 +26,7 @@ int PluginGraphViewComponent::getInsertIndexForX(int x) const
 {
     int insertIndex = 0;
 
-    for (int i = 0; i < (int)items.size(); ++i)
+    for (int i = 0; i < (int) items.size(); ++i)
     {
         if (i == draggingIndex)
             continue;
@@ -28,27 +38,22 @@ int PluginGraphViewComponent::getInsertIndexForX(int x) const
     return insertIndex;
 }
 
-juce::AudioProcessorGraph::NodeID* PluginGraphViewComponent::getSelectedPluginId() const
-{
-    return selectedPluginId.get();
-}
-
-void PluginGraphViewComponent::mouseDoubleClick(const juce::MouseEvent &event)
+void PluginGraphViewComponent::mouseDoubleClick(const juce::MouseEvent& event)
 {
     const int index = getItemIndexAt(event.position.toInt());
 
     if (index >= 0 && onPluginDoubleClicked)
-        onPluginDoubleClicked(items[index].nodeId);
+        onPluginDoubleClicked(items[(size_t) index].nodeId);
 }
 
-void PluginGraphViewComponent::mouseUp(const juce::MouseEvent &event)
+void PluginGraphViewComponent::mouseUp(const juce::MouseEvent& event)
 {
     if (draggingIndex < 0)
         return;
 
     if (event.mods.isRightButtonDown())
     {
-        if (selectedPluginId && onPluginBypassed)
+        if (selectedPluginId.has_value() && onPluginBypassed)
             onPluginBypassed(*selectedPluginId);
 
         draggingIndex = -1;
@@ -58,12 +63,13 @@ void PluginGraphViewComponent::mouseUp(const juce::MouseEvent &event)
         return;
     }
 
-    if (selectedPluginId != nullptr && event.mods.isMiddleButtonDown())
+    if (selectedPluginId.has_value() && event.mods.isMiddleButtonDown())
     {
         if (onMidiMapRequested)
             onMidiMapRequested(*selectedPluginId);
 
         draggingIndex = -1;
+        originalDragIndex = -1;
         layoutItems();
         repaint();
         return;
@@ -71,21 +77,20 @@ void PluginGraphViewComponent::mouseUp(const juce::MouseEvent &event)
 
     if (didDrag)
     {
-        const auto draggedItem = items[draggingIndex];
+        const auto draggedItem = items[(size_t) draggingIndex];
         const int dropX = draggedItem.bounds.getCentreX();
 
         items.erase(items.begin() + draggingIndex);
 
         int insertIndex = 0;
 
-        for (const auto &item : items)
+        for (const auto& item : items)
         {
             if (dropX > item.bounds.getCentreX())
                 ++insertIndex;
         }
 
-        insertIndex = juce::jlimit(0, (int)items.size(), insertIndex);
-
+        insertIndex = juce::jlimit(0, (int) items.size(), insertIndex);
         items.insert(items.begin() + insertIndex, draggedItem);
 
         draggingIndex = -1;
@@ -103,38 +108,33 @@ void PluginGraphViewComponent::mouseUp(const juce::MouseEvent &event)
     repaint();
 }
 
-void PluginGraphViewComponent::paint(juce::Graphics &g)
+void PluginGraphViewComponent::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colour(0xff101418));
 
-    // Draw cables first
-    for (int i = 0; i + 1 < (int)items.size(); ++i)
+    for (int i = 0; i + 1 < (int) items.size(); ++i)
     {
-        const auto &a = items[i];
-        const auto &b = items[i + 1];
+        const auto& a = items[(size_t) i];
+        const auto& b = items[(size_t) i + 1];
 
         g.setColour(juce::Colour(0xff8bd3ff));
-
-        g.drawLine((float)a.bounds.getRight(),
-                   (float)a.bounds.getCentreY(),
-                   (float)b.bounds.getX(),
-                   (float)b.bounds.getCentreY(),
+        g.drawLine((float) a.bounds.getRight(),
+                   (float) a.bounds.getCentreY(),
+                   (float) b.bounds.getX(),
+                   (float) b.bounds.getCentreY(),
                    2.0f);
     }
 
-    // Draw plugin boxes
-    for (int i = 0; i < (int)items.size(); ++i)
+    for (int i = 0; i < (int) items.size(); ++i)
     {
-        const auto &item = items[i];
-        const bool isSelected = selectedPluginId && item.nodeId == *selectedPluginId;
+        auto& item = items[(size_t) i];
+        const bool isSelected = selectedPluginId.has_value() && item.nodeId == *selectedPluginId;
         const bool isBypassed = item.bypassed;
+
         if (isSelected)
             g.setColour(juce::Colour(0xff405a78));
         else if (isBypassed)
-        {
-            DBG("Plugin " + item.name + " is bypassed. Painting with bypassed color.");
             g.setColour(juce::Colour(0x80ff0000));
-        }
         else
             g.setColour(juce::Colour(0xff2b3440));
 
@@ -147,6 +147,7 @@ void PluginGraphViewComponent::paint(juce::Graphics &g)
                 g.setColour(juce::Colour(0xffff0000));
             else
                 g.setColour(juce::Colour(0xffffd700));
+
             g.drawRoundedRectangle(item.bounds.toFloat(), 8.0f, 3.0f);
         }
 
@@ -157,12 +158,10 @@ void PluginGraphViewComponent::paint(juce::Graphics &g)
         }
 
         const bool isHovered = i == hoveredIndex;
-
         if (isHovered)
         {
             auto removeArea = item.bounds.reduced(8).removeFromTop(20).removeFromRight(20);
-
-            const_cast<PluginGraphItem &>(item).removeButtonBounds = removeArea;
+            item.removeButtonBounds = removeArea;
 
             g.setColour(juce::Colour(0xffaa3333));
             g.fillEllipse(removeArea.reduced(3).toFloat());
@@ -172,9 +171,7 @@ void PluginGraphViewComponent::paint(juce::Graphics &g)
         }
 
         g.setColour(juce::Colour(0xffdbe4ee));
-        g.drawText(item.name,
-                   item.bounds.reduced(8),
-                   juce::Justification::centred);
+        g.drawText(item.displayName, item.bounds.reduced(8), juce::Justification::centred);
     }
 }
 
@@ -183,7 +180,7 @@ void PluginGraphViewComponent::resized()
     layoutItems();
 }
 
-void PluginGraphViewComponent::mouseDrag(const juce::MouseEvent &event)
+void PluginGraphViewComponent::mouseDrag(const juce::MouseEvent& event)
 {
     if (draggingIndex < 0 || !event.mods.isLeftButtonDown())
         return;
@@ -191,22 +188,17 @@ void PluginGraphViewComponent::mouseDrag(const juce::MouseEvent &event)
     didDrag = true;
 
     auto newPos = event.position.toInt() - dragOffset;
-
-    items[draggingIndex].bounds.setPosition(
-        newPos.x,
-        items[draggingIndex].bounds.getY());
-
+    items[(size_t) draggingIndex].bounds.setPosition(newPos.x, items[(size_t) draggingIndex].bounds.getY());
     repaint();
 }
 
-void PluginGraphViewComponent::mouseMove(const juce::MouseEvent &event)
+void PluginGraphViewComponent::mouseMove(const juce::MouseEvent& event)
 {
-    const auto pos = event.position.toInt();
-    hoveredIndex = getItemIndexAt(pos);
+    hoveredIndex = getItemIndexAt(event.position.toInt());
     repaint();
 }
 
-void PluginGraphViewComponent::mouseDown(const juce::MouseEvent &event)
+void PluginGraphViewComponent::mouseDown(const juce::MouseEvent& event)
 {
     const auto pos = event.position.toInt();
 
@@ -214,8 +206,7 @@ void PluginGraphViewComponent::mouseDown(const juce::MouseEvent &event)
     originalDragIndex = draggingIndex;
     didDrag = false;
 
-    // remove button click
-    for (const auto &item : items)
+    for (const auto& item : items)
     {
         if (item.removeButtonBounds.contains(pos))
         {
@@ -228,10 +219,8 @@ void PluginGraphViewComponent::mouseDown(const juce::MouseEvent &event)
 
     if (draggingIndex >= 0)
     {
-        selectedPluginId = std::make_unique<juce::AudioProcessorGraph::NodeID>(
-            items[draggingIndex].nodeId);
-
-        dragOffset = pos - items[draggingIndex].bounds.getPosition();
+        selectedPluginId = items[(size_t) draggingIndex].nodeId;
+        dragOffset = pos - items[(size_t) draggingIndex].bounds.getPosition();
     }
     else
     {
@@ -241,7 +230,7 @@ void PluginGraphViewComponent::mouseDown(const juce::MouseEvent &event)
     repaint();
 }
 
-void PluginGraphViewComponent::mouseExit(const juce::MouseEvent &)
+void PluginGraphViewComponent::mouseExit(const juce::MouseEvent&)
 {
     hoveredIndex = -1;
     repaint();

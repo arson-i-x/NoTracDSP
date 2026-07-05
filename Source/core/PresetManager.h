@@ -1,8 +1,9 @@
 #pragma once
 
+#include <functional>
 #include <juce_core/juce_core.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include "core/AudioEngine.h"
+#include "core/Status.h"
 
 template <typename T>
 class PresetList 
@@ -56,8 +57,6 @@ private:
     PresetList<juce::String> presets;
 
     juce::String currentPresetName = "init";
-
-    std::optional<juce::UndoManager> undoManager;
 public:
     PresetManager();
     ~PresetManager();
@@ -69,7 +68,6 @@ public:
     const juce::String getCurrentPresetName() const { return currentPresetName; }
     PresetList<juce::String> getPresets() const;
     bool isModified() const { return stateModified; }
-    juce::ValueTree createPresetState(const juce::String& presetName) const;
     std::function<void(juce::ValueTree)> onPresetChanged; // Callback for when presets are changed
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PresetManager)

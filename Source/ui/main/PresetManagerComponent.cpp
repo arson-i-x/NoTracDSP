@@ -12,7 +12,7 @@ void PresetManagerComponent::resized()
 PresetManagerComponent::PresetManagerComponent(AudioEngine &engine, juce::UndoManager &undoManager)
     : undoManager(undoManager),
       audioEngine(engine),
-      presetManager(audioEngine, undoManager),
+    presetManager(),
       savePresetButton("Save Preset"),
       presetComboBox("UserPresets")
 {
@@ -133,7 +133,8 @@ void PresetManagerComponent::comboBoxChanged(juce::ComboBox *comboBoxThatHasChan
         {
             undoManager.beginNewTransaction("Change Preset to: " + presetManager.getPresets()[selectedIndex]);
 
-            undoManager.perform(new ChangePresetCommand(presetManager, selectedIndex));
+            auto oldState = audioEngine.createPresetState();
+            undoManager.perform(new ChangePresetCommand(presetManager, selectedIndex, oldState));
         }
     }
 }

@@ -1,9 +1,9 @@
 #include "ChangePresetCommand.h"
+#include "core/AppMessageBus.h"
 
-ChangePresetCommand::ChangePresetCommand(PresetManager& manager, int presetId)
-    : presetManager(manager), presetId(presetId)
+ChangePresetCommand::ChangePresetCommand(PresetManager& manager, int presetId, juce::ValueTree previousState)
+    : presetManager(manager), oldState(std::move(previousState)), presetId(presetId)
 {
-    oldState = presetManager.createPresetState(presetManager.getCurrentPresetName());
 }
 
 bool ChangePresetCommand::perform()
