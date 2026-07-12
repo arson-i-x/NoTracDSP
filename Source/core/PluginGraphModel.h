@@ -21,16 +21,8 @@ private:
 public:
     PluginGraphModel() = default;
 
-    bool addPlugin(const ActivePlugin& plugin)
-    {
-        if (plugin.desc.name.isEmpty() || plugin.nodeId.uid == 0)
-            return false;
-
-        activePlugins.push_back(plugin);
-        return true;
-    }
-
-    bool addPlugin(const juce::PluginDescription& desc, juce::AudioProcessorGraph::NodeID nodeId)
+    bool addPlugin(const juce::PluginDescription& desc, 
+        juce::AudioProcessorGraph::NodeID nodeId)
     {
         if (desc.name.isEmpty())
             return false;

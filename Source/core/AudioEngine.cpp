@@ -12,23 +12,10 @@ AudioEngine::AudioEngine() : juce::AudioIODeviceCallback(),
     if (initResult.isNotEmpty())
         deviceStatus.statusText = initResult;
 
-    inputNode = audioProcessorGraph.addNode(
-    std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
-        juce::AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode));
-
-    outputNode = audioProcessorGraph.addNode(
-        std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
-            juce::AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode));
-
     // GUI thread: listen for device changes so the UI can refresh status labels safely.
     audioDeviceManager.addChangeListener (this);
     audioDeviceManager.addAudioCallback (this);
     refreshDeviceStatus();
-}
-
-DeviceStatus AudioEngine::getDeviceStatus() const noexcept
-{
-    return deviceStatus;
 }
 
 void AudioEngine::setMasterGain (float newGain) noexcept
@@ -60,6 +47,8 @@ void AudioEngine::setDelayMix (float mix) noexcept
 
 void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
 {
+    processingEngine = std::make_unique<ProcessingEngine>();
+
     sampleRate = device != nullptr ? device->getCurrentSampleRate() : 0.0;
     blockSize = device != nullptr ? device->getCurrentBufferSizeSamples() : 0;
     numChannels = device != nullptr ? juce::jmax (1, device->getActiveOutputChannels().countNumberOfSetBits())
@@ -68,18 +57,14 @@ void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
     graphBuffer.setSize(2, blockSize);
     graphBuffer.clear();
 
-    audioProcessorGraph.setPlayConfigDetails(2, 2, sampleRate, blockSize);
-    audioProcessorGraph.prepareToPlay(sampleRate, blockSize);
+    processingEngine->prepare(sampleRate, blockSize, 2, 2);
 
     rebuildGraphConnections();
 }
 
 void AudioEngine::audioDeviceStopped()
 {
-    // for (auto& processor : processors)
-    // {
-    //     processor->prepare (0.0, 0, 0);
-    // }
+    processingEngine.reset();
     sampleRate = 0.0;
     blockSize = 0;
     numChannels = 0;
@@ -178,7 +163,7 @@ Result<juce::AudioProcessorGraph::Node::Ptr> AudioEngine::addPlugin(
     if (!result.ok)
         return Result<juce::AudioProcessorGraph::Node::Ptr>::failure(result.error);
 
-    auto node = audioProcessorGraph.addNode(std::move(result.value));
+    auto node = processingEngine->getGraph().addNode(std::move(result.value));
 
     if (node == nullptr)
         return Result<juce::AudioProcessorGraph::Node::Ptr>::failure("Failed to add plugin node to graph.");
@@ -191,7 +176,7 @@ Result<juce::AudioProcessorGraph::Node::Ptr> AudioEngine::addPlugin(
 
 juce::AudioProcessor* AudioEngine::getProcessorForNode(juce::AudioProcessorGraph::NodeID nodeId)
 {
-    if (auto node = audioProcessorGraph.getNodeForId(nodeId))
+    if (auto node = processingEngine->getGraph().getNodeForId(nodeId))
         return node->getProcessor();
 
     return nullptr;
@@ -214,7 +199,7 @@ AudioEngine::findPluginByIdentifier(
 void AudioEngine::clearPlugins()
 {
     pluginGraphModel.clearPlugins();
-    audioProcessorGraph.clear();
+    processingEngine->getGraph().clear();
 }
 
 const std::vector<ActivePlugin>& AudioEngine::getActivePluginsInfo() const noexcept
@@ -231,7 +216,7 @@ juce::ValueTree AudioEngine::createPresetState() const
     
     for (const auto& plugin : pluginGraphModel.getActivePlugins())
     {
-        auto* node = audioProcessorGraph.getNodeForId(plugin.nodeId);
+        auto* node = processingEngine->getGraph().getNodeForId(plugin.nodeId);
 
         if (node == nullptr || node->getProcessor() == nullptr)
             continue;
@@ -311,26 +296,31 @@ Status AudioEngine::restorePresetState(const juce::ValueTree& preset)
 
 void AudioEngine::rebuildGraphConnections()
 {
-    if (inputNode == nullptr || outputNode == nullptr)
-        return;
+    processingEngine->getGraph().clear();
 
-    auto connections = audioProcessorGraph.getConnections();
-
-    for (const auto& connection : connections)
-        audioProcessorGraph.removeConnection(connection);
-
-    auto previousNode = inputNode->nodeID;
-
-    for (const auto& plugin : pluginGraphModel.getActivePlugins())
+    // Connect the input node to the first plugin in the chain
+    if (!pluginGraphModel.getActivePlugins().empty())
     {
-        if (audioProcessorGraph.getNodeForId(plugin.nodeId) == nullptr)
-            continue;
-
-        connectStereo(previousNode, plugin.nodeId);
-        previousNode = plugin.nodeId;
+        auto firstPluginId = pluginGraphModel.getActivePlugins().front().nodeId;
+        connectStereo(processingEngine->getInputNode()->nodeID, firstPluginId);
     }
 
-    connectStereo(previousNode, outputNode->nodeID);
+    // Connect plugins in the order specified by the plugin graph model
+    for (size_t i = 0; i < pluginGraphModel.getActivePlugins().size(); ++i)
+    {
+        auto currentPluginId = pluginGraphModel.getActivePlugins()[i].nodeId;
+
+        if (i + 1 < pluginGraphModel.getActivePlugins().size())
+        {
+            auto nextPluginId = pluginGraphModel.getActivePlugins()[i + 1].nodeId;
+            connectStereo(currentPluginId, nextPluginId);
+        }
+        else
+        {
+            // Connect the last plugin to the output node
+            connectStereo(currentPluginId, processingEngine->getOutputNode()->nodeID);
+        }
+    }
 }
 
 Result<PluginSnapshot> AudioEngine::getPluginSnapshot(juce::AudioProcessorGraph::NodeID nodeId) const
@@ -582,4 +572,9 @@ void AudioEngine::shutdown()
 
     inputNode = nullptr;
     outputNode = nullptr;
+}
+
+DeviceStatus AudioEngine::getDeviceStatus() const noexcept
+{
+    return deviceStatus;
 }

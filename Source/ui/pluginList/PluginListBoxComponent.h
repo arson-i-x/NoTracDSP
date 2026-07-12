@@ -40,7 +40,7 @@ public:
 
     void resized() override;
 
-    juce::KnownPluginList& getKnownPluginList() const { return knownPluginList; }
+    juce::KnownPluginList& getKnownPluginList() const {return knownPluginList;}
 
     std::function<void(const juce::PluginDescription&)> onPluginChosen;
 
@@ -49,7 +49,6 @@ private:
     void scanForPlugins();
     void updateScanSettings();
     void refreshPluginList();
-    std::optional<juce::PluginDescription> getSelectedPlugin();
 
     juce::KnownPluginList& knownPluginList;
 

@@ -42,6 +42,10 @@ PresetManagerComponent::PresetManagerComponent(AudioEngine &engine, juce::UndoMa
     savePresetButton.setTooltip("Save Preset");
     savePresetButton.setSize(getHeight(), getHeight());
 
+    presetComboBox.setColour(
+        juce::ComboBox::backgroundColourId, 
+        juce::Colours::transparentBlack); 
+
     addAndMakeVisible(presetComboBox);
     addAndMakeVisible(savePresetButton);
 
@@ -71,6 +75,11 @@ void PresetManagerComponent::updatePresetComboBox()
     presetComboBox.setText(
         presetManager.getCurrentPresetName(), 
         juce::dontSendNotification); // Select the current preset by default
+
+    // reset colour to default after updating the combo box
+    presetComboBox.setColour(
+        juce::ComboBox::backgroundColourId, 
+        juce::Colours::transparentBlack); 
 }
 
 void PresetManagerComponent::changeListenerCallback(juce::ChangeBroadcaster *source)
@@ -82,10 +91,10 @@ void PresetManagerComponent::changeListenerCallback(juce::ChangeBroadcaster *sou
 
     if (source == &audioEngine)
     {
-        // Handle audio engine status changes if needed
-        presetComboBox.setColour(juce::ComboBox::backgroundColourId, juce::Colours::lightgrey); 
-        presetComboBox.setText(presetManager.getCurrentPresetName() + " *", juce::dontSendNotification); // Update the combo box to show the current preset
-        // Example: change color on status change
+        // Update the combo box to show the current preset is modified
+        presetComboBox.setText(
+            presetManager.getCurrentPresetName() + "*", 
+            juce::dontSendNotification); 
     }
 }
 

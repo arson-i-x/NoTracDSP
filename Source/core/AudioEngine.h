@@ -5,6 +5,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "core/ProcessingEngine.h"
 #include "core/PluginRegistry.h"
 #include "core/PluginGraphModel.h"
 #include "core/AppMessageBus.h"
@@ -13,9 +14,7 @@
 
 #include "commands/AppCommand.h"
 
-#include "customProcessors/AudioProcessorBase.h"
-#include "customProcessors/GainProcessor.h"
-#include "customProcessors/DelayProcessor.h"
+#include "customProcessors/PolyphonicOctaver.h"
 
 struct DeviceStatus
 {
@@ -124,9 +123,7 @@ public:
     const PluginGraphModel &getPluginGraphModel() const noexcept { return pluginGraphModel; }
 
 private:
-    juce::AudioProcessorGraph audioProcessorGraph;
-    juce::AudioProcessorGraph::Node::Ptr inputNode;
-    juce::AudioProcessorGraph::Node::Ptr outputNode;
+    std::unique_ptr<ProcessingEngine> processingEngine;
 
     PluginRegistry pluginRegistry;
 
@@ -137,10 +134,8 @@ private:
     DeviceStatus deviceStatus;
 
     void changeListenerCallback(juce::ChangeBroadcaster *) override;
-    void closeEditorsForNode(juce::AudioProcessorGraph::NodeID nodeId);
     void handleAsyncUpdate() override;
     void refreshDeviceStatus() noexcept;
-    void setPluginInstance(std::unique_ptr<juce::AudioPluginInstance> newPlugin);
     void connectStereo(juce::AudioProcessorGraph::NodeID source, juce::AudioProcessorGraph::NodeID dest);
 
     juce::AudioBuffer<float> graphBuffer;

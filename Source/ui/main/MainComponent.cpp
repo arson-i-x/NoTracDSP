@@ -15,7 +15,9 @@ void MainComponent::createPresetManagerBox()
         audioEngine.restorePresetState(newPreset);
         refreshGraphView();
     };
-    audioEngine.addStatusListener(&presetManagerComponent); // Listen for changes in the audio engine state
+    
+    // Listen for changes in the audio engine state
+    audioEngine.addStatusListener(&presetManagerComponent); 
     addAndMakeVisible(presetManagerComponent);
 }
 
