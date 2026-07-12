@@ -54,10 +54,6 @@ public:
 
     void setMasterGain(float newGain) noexcept;
 
-    void setDelayTimeMs(float ms) noexcept;
-
-    void setDelayMix(float mix) noexcept;
-
     [[nodiscard]] DeviceStatus getDeviceStatus() const noexcept;
 
     void addStatusListener(juce::ChangeListener *listener) 
@@ -110,8 +106,8 @@ public:
     juce::AudioDeviceManager &getAudioDeviceManager() noexcept { return audioDeviceManager; }
     const juce::AudioDeviceManager &getAudioDeviceManager() const noexcept { return audioDeviceManager; }
 
-    juce::AudioProcessorGraph &getAudioProcessorGraph() noexcept { return audioProcessorGraph; }
-    const juce::AudioProcessorGraph &getAudioProcessorGraph() const noexcept { return audioProcessorGraph; }
+    juce::AudioProcessorGraph &getAudioProcessorGraph() noexcept { return processingEngine->getGraph(); }
+    const juce::AudioProcessorGraph &getAudioProcessorGraph() const noexcept { return processingEngine->getGraph(); }
 
     PluginRegistry &getPluginRegistry() noexcept { return pluginRegistry; }
     const PluginRegistry &getPluginRegistry() const noexcept { return pluginRegistry; }

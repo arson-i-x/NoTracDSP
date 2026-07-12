@@ -29,22 +29,6 @@ void AudioEngine::setMasterGain (float newGain) noexcept
     // }
 }
 
-void AudioEngine::setDelayTimeMs (float ms) noexcept
-{
-    // for (auto& processor : processors)
-    // {
-    //     if (auto& delayProcessor = dynamic_cast<DelayProcessor*>(processor))
-    //     {
-    //         delayProcessor->setDelayTimeMs (ms);
-    //     }
-    // }
-}
-
-void AudioEngine::setDelayMix (float mix) noexcept
-{
-    // delayProcessor.setDelayMix (mix);
-}
-
 void AudioEngine::audioDeviceAboutToStart (juce::AudioIODevice* device)
 {
     processingEngine = std::make_unique<ProcessingEngine>();
@@ -95,7 +79,7 @@ void AudioEngine::audioDeviceIOCallbackWithContext(
 
     midiBuffer.clear();
 
-    audioProcessorGraph.processBlock(graphBuffer, midiBuffer);
+    processingEngine->process(graphBuffer, midiBuffer);
 
     if (numOutputChannels > 0 && outputChannelData[0] != nullptr)
         juce::FloatVectorOperations::copy(
@@ -332,7 +316,7 @@ Result<PluginSnapshot> AudioEngine::getPluginSnapshot(juce::AudioProcessorGraph:
         if (plugin.nodeId != nodeId)
             continue;
 
-        auto* node = audioProcessorGraph.getNodeForId(nodeId);
+        auto* node = processingEngine->getGraph().getNodeForId(nodeId);
 
         if (node == nullptr || node->getProcessor() == nullptr)
             return Result<PluginSnapshot>::failure("Failed to remove plugin: Node not found.");
@@ -358,7 +342,7 @@ Status AudioEngine::removePlugin(juce::AudioProcessorGraph::NodeID nodeId)
     if (!pluginGraphModel.removePlugin(nodeId))
         return Status::failure("Failed to remove plugin: Plugin not found.");
 
-    if (!audioProcessorGraph.removeNode(nodeId))
+    if (!processingEngine->getGraph().removeNode(nodeId))
         return Status::failure("Failed to remove plugin: Node not found.");
 
     rebuildGraphConnections();
@@ -391,7 +375,7 @@ const std::vector<juce::AudioProcessorGraph::NodeID> AudioEngine::getPluginOrder
 
 Status AudioEngine::canFindPlugin(juce::AudioProcessorGraph::NodeID nodeId) const
 {
-    if (audioProcessorGraph.getNodeForId(nodeId) == nullptr)
+    if (processingEngine->getGraph().getNodeForId(nodeId) == nullptr)
         return Status::failure("Could not find plugin node.");
 
     for (const auto& plugin : pluginGraphModel.getActivePlugins())
@@ -490,10 +474,10 @@ void AudioEngine::connectStereo(
     juce::AudioProcessorGraph::NodeID source,
     juce::AudioProcessorGraph::NodeID dest)
 {
-    const bool leftOk = audioProcessorGraph.addConnection(
+    const bool leftOk = processingEngine->getGraph().addConnection(
         { { source, 0 }, { dest, 0 } });
 
-    const bool rightOk = audioProcessorGraph.addConnection(
+    const bool rightOk = processingEngine->getGraph().addConnection(
         { { source, 1 }, { dest, 1 } });
 
     DBG("Connect "
@@ -533,7 +517,7 @@ Result<juce::AudioProcessorGraph::Node::Ptr> AudioEngine::restorePluginSnapshot(
 
 juce::AudioProcessorGraph::Node::Ptr AudioEngine::getNodeForId(juce::AudioProcessorGraph::NodeID nodeId) const
 {
-    return audioProcessorGraph.getNodeForId(nodeId);
+    return processingEngine->getGraph().getNodeForId(nodeId);
 }
 
 Status AudioEngine::togglePluginBypass(juce::AudioProcessorGraph::NodeID nodeId)
@@ -552,7 +536,7 @@ Status AudioEngine::setPluginBypassed(
             continue;
         plugin.bypassed = shouldBypass;
 
-        if (auto *node = audioProcessorGraph.getNodeForId(nodeId))
+        if (auto *node = processingEngine->getGraph().getNodeForId(nodeId))
             node->setBypassed(shouldBypass);
         else
             return Status::failure("Plugin node not found in audio processor graph.");
@@ -566,12 +550,7 @@ void AudioEngine::shutdown()
 {
     audioDeviceManager.removeAudioCallback(this);
     audioDeviceManager.removeChangeListener(this);
-
     pluginGraphModel.clearPlugins();
-    audioProcessorGraph.clear();
-
-    inputNode = nullptr;
-    outputNode = nullptr;
 }
 
 DeviceStatus AudioEngine::getDeviceStatus() const noexcept
