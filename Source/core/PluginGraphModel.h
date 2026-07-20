@@ -5,17 +5,19 @@
 
 struct ActivePlugin
 {
-    juce::AudioProcessorGraph::NodeID nodeId;
-    juce::PluginDescription desc;
-    juce::String displayName;
+    const juce::PluginDescription* desc = nullptr;
+    juce::String displayName = desc ? desc->name : "Unknown Plugin";
     bool bypassed = false;
     int chainIndex = -1;
+    std::optional<juce::MemoryBlock> state = std::nullopt;
 };
 
-class PluginGraphModel
+using PluginMap = std::map<juce::AudioProcessorGraph::NodeID, ActivePlugin>;
+
+class PluginGraphModel : public juce::ChangeBroadcaster
 {
 private:
-    std::vector<ActivePlugin> activePlugins;
+    PluginMap activePlugins;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginGraphModel)
 public:
@@ -24,101 +26,166 @@ public:
     bool addPlugin(const juce::PluginDescription& desc, 
         juce::AudioProcessorGraph::NodeID nodeId)
     {
-        if (desc.name.isEmpty())
+        ActivePlugin plugin {
+            .desc = &desc,
+            .displayName = desc.name,
+            .bypassed = false,
+            .chainIndex = (int)activePlugins.size(),
+            .state = std::nullopt
+        };
+        return addPlugin(plugin, nodeId);
+    }
+
+    bool addPlugin(const ActivePlugin& plugin, 
+        juce::AudioProcessorGraph::NodeID nodeId)
+    {
+        if (plugin.desc == nullptr || plugin.desc->name.isEmpty())
             return false;
 
         if (nodeId.uid == 0)
             return false;
 
-        ActivePlugin plugin;
-        plugin.desc = desc;
-        plugin.displayName = desc.name;
-        plugin.bypassed = false;
-        plugin.nodeId = nodeId;
+        activePlugins[nodeId] = plugin;
 
-        activePlugins.push_back(plugin);
+        sendChangeMessage();
+
         return true;
+    }
+
+    void setPluginState(juce::AudioProcessorGraph::NodeID nodeId, ActivePlugin plugin)
+    {
+        activePlugins[nodeId] = plugin;
+        sendChangeMessage();
+    }
+
+    juce::String getDisplayName(juce::AudioProcessorGraph::NodeID nodeId) const
+    {
+        auto plugin = activePlugins.at(nodeId);
+        return plugin.displayName;
     }
 
     void clearPlugins()
     {
         activePlugins.clear();
+        sendChangeMessage();
     }
 
-    std::vector<ActivePlugin>& getActivePlugins()
+    const std::vector<juce::AudioProcessorGraph::NodeID> getOrderedNodeIDs() const
     {
-        return activePlugins;
+        std::vector<juce::AudioProcessorGraph::NodeID> orderedNodeIDs;
+
+        for (const auto& [nodeId, plugin] : activePlugins)
+            orderedNodeIDs.push_back(nodeId);
+
+        std::sort(orderedNodeIDs.begin(), orderedNodeIDs.end(), [this](const auto& a, const auto& b)
+        {
+            return this->activePlugins.at(a).chainIndex < this->activePlugins.at(b).chainIndex;
+        });
+
+        return orderedNodeIDs;
+    }
+
+    std::vector<ActivePlugin> getActivePlugins()
+    {
+        std::vector<ActivePlugin> orderedPlugins;
+
+        for (const auto& [nodeId, plugin] : activePlugins)
+            orderedPlugins.push_back(plugin);
+
+        std::sort(orderedPlugins.begin(), orderedPlugins.end(), [](const auto& a, const auto& b)
+        {
+            return a.chainIndex < b.chainIndex;
+        });
+
+        return orderedPlugins;
     }
 
     bool removePlugin(juce::AudioProcessorGraph::NodeID nodeId)
     {
-        for (auto it = activePlugins.begin(); it != activePlugins.end(); ++it)
+        auto result = activePlugins.erase(nodeId);
+        if (result > 0)
         {
-            if (it->nodeId == nodeId)
-            {
-                activePlugins.erase(it);
-                return true;
-            }
+            sendChangeMessage();
+            return true;
         }
-
         return false;
     }
 
-    bool setPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder)
+    void setPluginOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder)
     {
-        if (newOrder.size() != activePlugins.size())
-            return false;
+        if (!validOrder(newOrder))
+            throw std::invalid_argument("Invalid plugin order: must contain all active plugins and no duplicates.");
 
-        std::vector<ActivePlugin> reordered;
-        reordered.reserve(activePlugins.size());
+        std::map<juce::AudioProcessorGraph::NodeID, ActivePlugin> reordered;
+
+        int chainIndex = 0;
 
         for (const auto nodeId : newOrder)
         {
-            auto it = std::find_if(activePlugins.begin(), activePlugins.end(),
-                [nodeId](const ActivePlugin& plugin)
-                {
-                    return plugin.nodeId == nodeId;
-                });
+            // get the plugin with this nodeId
+            auto& plugin = activePlugins.at(nodeId);
 
-            if (it == activePlugins.end())
-                return false;
-
-            reordered.push_back(*it);
+            plugin.chainIndex = chainIndex++;
         }
 
         activePlugins = std::move(reordered);
-        for (int i = 0; i < (int) activePlugins.size(); ++i)
-            activePlugins[i].chainIndex = i;
 
-        return true;
+        sendChangeMessage();
     }
 
     bool isPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId) const
     {
-        for (const auto& plugin : activePlugins)
-        {
-            if (plugin.nodeId == nodeId)
-                return plugin.bypassed;
-        }
+        auto plugin = activePlugins.at(nodeId);
 
-        return false;
+        return plugin.bypassed;
     }
 
     bool setPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId, bool bypassed)
     {
-        for (auto& plugin : activePlugins)
-        {
-            if (plugin.nodeId == nodeId)
-            {
-                plugin.bypassed = bypassed;
-                return true;
-            }
-        }
-
-        return false;
+        auto& plugin = activePlugins.at(nodeId);
+        plugin.bypassed = bypassed;
+        sendChangeMessage();
+        return true;
     }
 
-    const std::vector<ActivePlugin>& getActivePlugins() const
+    bool toggleBypass(juce::AudioProcessorGraph::NodeID nodeId)
+    {
+        auto& plugin = activePlugins.at(nodeId);
+        plugin.bypassed = !plugin.bypassed;
+        sendChangeMessage();
+        return true;
+    }
+
+    bool validOrder(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder) const
+    {
+        // ensure that the new order contains all the active plugins and no duplicates
+        if (newOrder.size() != activePlugins.size())
+            return false;
+        std::set<juce::AudioProcessorGraph::NodeID> uniqueIds(newOrder.begin(), newOrder.end());
+        if (uniqueIds.size() != newOrder.size())
+            return false;
+
+        // ensure that all the node IDs in the new order are present in the active plugins
+        for (const auto& nodeId : newOrder)
+        {
+            if (activePlugins.find(nodeId) == activePlugins.end())
+                return false;
+        }
+
+        return true;
+    }
+
+    const juce::AudioProcessorGraph::NodeID* tryGetPluginId(juce::AudioProcessorGraph::NodeID nodeId) const
+    {
+        auto it = activePlugins.find(nodeId);
+        if (it != activePlugins.end()) {
+            return &it->first;
+        }
+        return nullptr;
+    }
+
+    // shows the map of the active plugins in the graph, with their node IDs as keys
+    const PluginMap& getPluginMap() const
     {
         return activePlugins;
     }

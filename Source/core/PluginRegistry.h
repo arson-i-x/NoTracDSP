@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "core/Result.h"
+#include "customProcessors/PolyphonicOctaver.h"
 
 class PluginRegistry
 {
@@ -10,11 +11,38 @@ private:
     juce::AudioPluginFormatManager pluginFormatManager;
 
 public:
-    Result<std::unique_ptr<juce::AudioProcessor>> createPluginInstance(
+    PluginRegistry()
+    {
+        juce::addDefaultFormatsToManager(pluginFormatManager);
+    
+        // add default plugins to the known plugin list
+        knownPluginList.addType(PolyphonicOctaver::getPluginDescription());
+    }
+
+    std::unique_ptr<juce::AudioProcessor> createCustomPluginInstance(
         const juce::PluginDescription& desc,
         double sampleRate,
         int blockSize)
     {
+        if (desc.name == PolyphonicOctaver::getPluginDescription().name)
+        {
+            return std::make_unique<PolyphonicOctaver>();
+        }
+
+        DBG("Unknown custom plugin: " + desc.name);
+        throw std::invalid_argument("Unknown custom plugin: " + desc.name.toStdString());
+    }
+
+    std::unique_ptr<juce::AudioProcessor> createPluginInstance(
+        const juce::PluginDescription& desc,
+        double sampleRate,
+        int blockSize)
+    {
+        if (desc.fileOrIdentifier.startsWith("notrac.internal"))
+        {
+            return createCustomPluginInstance(desc, sampleRate, blockSize);
+        }
+
         juce::String error;
 
         auto plugin = pluginFormatManager.createPluginInstance(
@@ -25,21 +53,12 @@ public:
 
         if (!plugin)
         {
-            DBG("Failed to load plugin: " + error);
-            return Result<std::unique_ptr<juce::AudioProcessor>>::failure("Failed to load plugin: " + error);
+            DBG("Failed to create plugin instance: " + error);
+            throw std::runtime_error("Failed to create plugin instance: " + error.toStdString());
         }
 
-        return Result<std::unique_ptr<juce::AudioProcessor>>::success(std::move(plugin));
+        return plugin;
     }
-
-    Result<std::unique_ptr<juce::AudioProcessor>> getPluginInstance(
-        const juce::PluginDescription& desc,
-        double sampleRate,
-        int blockSize)
-    {
-        return createPluginInstance(desc, sampleRate, blockSize);
-    }
-
 
     juce::KnownPluginList& getKnownPluginList() noexcept { return knownPluginList; }
     const juce::KnownPluginList& getKnownPluginList() const noexcept { return knownPluginList; }

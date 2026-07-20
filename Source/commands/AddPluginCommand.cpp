@@ -2,13 +2,16 @@
 
 bool AddPluginCommand::perform()
 {
-    auto result = audioEngine.addPlugin(desc);
+    auto result = controller.addPlugin(desc);
 
     if (!result.ok)
+    {
+        DBG("Failed to add plugin " + desc.name + ": " + result.error);
         return false;
+    }
 
-    audioEngine.sendChangeMessage(); // Notify listeners that a new plugin has been added
-    addedNodeId = result.value->nodeID;
+    addedNodeId = result.value;
+        
     return true;
 }
 
@@ -18,11 +21,10 @@ bool AddPluginCommand::undo()
     {
         return false;
     }
-    auto status = audioEngine.removePlugin(*addedNodeId);
+    auto status = controller.removePlugin(*addedNodeId);
     if (!status.ok)
         return false;
 
-    audioEngine.sendChangeMessage(); // Notify listeners that the plugin has been removed
     return true;
 }
 

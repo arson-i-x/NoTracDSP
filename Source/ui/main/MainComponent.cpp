@@ -8,38 +8,6 @@ MidiTrigger MainComponent::midiTriggerForSoftwareSwitch(int switchNumber)
         19 + switchNumber};
 }
 
-void MainComponent::createPresetManagerBox()
-{
-    presetManagerComponent.onPresetChanged = [this](const juce::ValueTree& newPreset)
-    {
-        audioEngine.restorePresetState(newPreset);
-        refreshGraphView();
-    };
-    
-    // Listen for changes in the audio engine state
-    audioEngine.addStatusListener(&presetManagerComponent); 
-    addAndMakeVisible(presetManagerComponent);
-}
-
-void MainComponent::refreshGraphView()
-{
-    std::vector<PluginGraphItem> pluginItems;
-    const auto& activePlugins = audioEngine.getActivePluginsInfo();
-    pluginItems.reserve(activePlugins.size());
-
-    for (const auto& plugin : activePlugins)
-    {
-        pluginItems.push_back(PluginGraphItem{
-            plugin.nodeId,
-            plugin.desc,
-            plugin.displayName,
-            plugin.bypassed,
-        });
-    }
-
-    pluginGraphViewComponent.setPlugins(pluginItems);
-}
-
 void MainComponent::createUndoRedoButtons() 
 {
     auto undoImage = resources.getIcon(IconType::Undo);
@@ -64,27 +32,13 @@ void MainComponent::createUndoRedoButtons()
 
     undoButton.onClick = [this]
     {
-        if (undoManager.canUndo())
-        {
-            undoManager.undo();
-            refreshGraphView();
-        }
-        else
-        {
+        if (!app.undo())
             AppMessageBus::getInstance().warning("Nothing to undo", "There are no actions to undo.");
-        }
     };
     redoButton.onClick = [this]
     {
-        if (undoManager.canRedo())
-        {
-            undoManager.redo();
-            refreshGraphView();
-        }
-        else 
-        {
+        if (!app.redo())
             AppMessageBus::getInstance().warning("Nothing to redo", "There are no actions to redo.");
-        }
     };
     settingsButton.onClick = [this]
     {
@@ -108,7 +62,7 @@ void MainComponent::createMasterGainUI()
     gainSlider.setValue(1.0);
     gainSlider.onValueChange = [this]
     {
-        audioEngine.setMasterGain((float)gainSlider.getValue());
+        app.setMasterGain((float)gainSlider.getValue());
         updateGainReadout();
     };
     addAndMakeVisible(gainSlider);
@@ -119,41 +73,7 @@ void MainComponent::createMasterGainUI()
 
 void MainComponent::createCustomFXUI()
 {
-    delayTimeLabel.setText("Delay Time", juce::dontSendNotification);
-    delayTimeLabel.setJustificationType(juce::Justification::centredLeft);
-    delayTimeLabel.setColour(juce::Label::textColourId, juce::Colour(0xffc7d0db));
-    addAndMakeVisible(delayTimeLabel);
-    delayTimeSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-    delayTimeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 88, 24);
-    delayTimeSlider.setRange(0.0, 2000.0, 1.0);
-    delayTimeSlider.setValue(1000.0);
-    delayTimeSlider.onValueChange = [this]
-    {
-        audioEngine.setDelayTimeMs((float)delayTimeSlider.getValue());
-        updateDelayReadout();
-    };
-    addAndMakeVisible(delayTimeSlider);
-    delayTimeValueLabel.setJustificationType(juce::Justification::centredRight);
-    delayTimeValueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff8bd3ff));
-    addAndMakeVisible(delayTimeValueLabel);
 
-    delayMixLabel.setText("Delay Mix", juce::dontSendNotification);
-    delayMixLabel.setJustificationType(juce::Justification::centredLeft);
-    delayMixLabel.setColour(juce::Label::textColourId, juce::Colour(0xffc7d0db));
-    addAndMakeVisible(delayMixLabel);
-    delayMixSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-    delayMixSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 88, 24);
-    delayMixSlider.setRange(0.0, 1.0, 0.001);
-    delayMixSlider.setValue(0.5);
-    delayMixSlider.onValueChange = [this]
-    {
-        audioEngine.setDelayMix((float)delayMixSlider.getValue());
-        updateDelayReadout();
-    };
-    addAndMakeVisible(delayMixSlider);
-    delayMixValueLabel.setJustificationType(juce::Justification::centredRight);
-    delayMixValueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff8bd3ff));
-    addAndMakeVisible(delayMixValueLabel);
 }
 
 void MainComponent::createTitleLabel()
@@ -185,36 +105,6 @@ void MainComponent::createSettingsOverlay()
     // };
 }
 
-void MainComponent::tryAddPluginFromList(const juce::PluginDescription &desc)
-{
-    auto validation = audioEngine.canAddPlugin(desc);
-    auto& messages = AppMessageBus::getInstance();
-    if (!validation.ok)
-    {
-        messages.error("Cannot add plugin", validation.error);
-        return;
-    }
-
-    undoManager.beginNewTransaction("Added Plugin: " + desc.name); 
-
-    bool performed = undoManager.perform(
-        new AddPluginCommand(
-            audioEngine, 
-            desc
-        )
-    );
-
-    if (!performed)
-    {
-        messages.error("Failed to add plugin", "An unknown error occurred while adding the plugin.");
-    }
-    else
-    {
-        messages.info("Plugin added", "Successfully added plugin: " + desc.name);
-    }
-
-    refreshGraphView();
-}
 
 void MainComponent::closePluginListWindow()
 {
@@ -230,106 +120,12 @@ void MainComponent::openPluginListWindow()
     pluginListBoxComponent.onPluginChosen = 
     [this](const juce::PluginDescription& desc)
     {
-        tryAddPluginFromList(desc);
+        app.requestAddPlugin(desc);
     };
 
     addAndMakeVisible(pluginListBoxComponent);
 
     resized();
-}
-
-void MainComponent::tryChangePluginBypassStateFromGraphView(juce::AudioProcessorGraph::NodeID nodeId)
-{
-    auto validation = audioEngine.canFindPlugin(nodeId);
-    auto &messages = AppMessageBus::getInstance();
-    if (!validation.ok)
-    {
-        messages.warning("Cannot bypass plugin", validation.error);
-        return;
-    }
-    
-    undoManager.beginNewTransaction("Changed Bypass State for Plugin: " + audioEngine.getPluginName(nodeId)); 
-
-    const bool performed = undoManager.perform(
-        new BypassPluginCommand(audioEngine, nodeId));
-
-    if (!performed)
-    {
-        messages.error("Failed to change bypass state", "An unknown error occurred while changing the bypass state.");
-    }
-
-    refreshGraphView();
-}
-
-void MainComponent::tryChangePluginOrderFromGraphView(const std::vector<juce::AudioProcessorGraph::NodeID> &newOrder)
-{
-    auto validation = audioEngine.canSetPluginOrder(newOrder);
-
-    auto& messages = AppMessageBus::getInstance();
-    if (!validation.ok)
-    {
-        messages.warning("Cannot reorder plugins", validation.error);
-        return;
-    }
-
-    undoManager.beginNewTransaction("Changed Plugin Order"); 
-
-    const bool performed = undoManager.perform(
-        new SetPluginOrderCommand(audioEngine, newOrder));
-
-    if (!performed)
-    {
-        messages.error("Failed to change plugin order", "An error occurred while changing the plugin order.");
-    }
-
-    refreshGraphView();
-}
-
-void MainComponent::tryRemovePluginFromGraphView(juce::AudioProcessorGraph::NodeID nodeId)
-{
-    auto validation = audioEngine.canFindPlugin(nodeId);
-
-    auto &messages = AppMessageBus::getInstance();
-    if (!validation.ok)
-    {
-        messages.warning("Cannot find plugin", validation.error);
-        return;
-    }
-
-    if (pluginWindows.find(nodeId) != pluginWindows.end())
-    {
-        auto pluginWindow = pluginWindows[nodeId].get();
-        auto editor = pluginWindow->getContentComponent();
-        
-        editor->exitModalState(0);
-        pluginWindow->exitModalState(0);
-
-        pluginWindows[nodeId]->setVisible(false);
-        pluginWindows.erase(nodeId);
-    }
-
-    undoManager.beginNewTransaction("Removed Plugin: " + audioEngine.getPluginName(nodeId)); 
-
-    const bool performed = undoManager.perform(
-        new RemovePluginCommand(audioEngine, nodeId)
-    );
-
-    if (!performed)
-    {
-        messages.error("Failed to remove plugin", "An unknown error occurred while removing the plugin.");
-    }
-    else
-    {
-        messages.info("Plugin removed", "Successfully removed plugin.");
-    }
-
-    refreshGraphView();
-};
-
-void MainComponent::tryMidiMapPluginFromGraphView(juce::AudioProcessorGraph::NodeID nodeId)
-{
-    auto name = audioEngine.getPluginName(nodeId);
-    settingsOverlay.openForPlugin(nodeId, name);
 }
 
 void MainComponent::createPluginListButton()
@@ -361,21 +157,19 @@ void MainComponent::createPluginGraphViewWithCallbacks()
 
     pluginGraphViewComponent.onOrderChanged =
         [this](const std::vector<juce::AudioProcessorGraph::NodeID> &newOrder)
-    { tryChangePluginOrderFromGraphView(newOrder); };
+    { app.requestOrderChange(newOrder); };
 
     pluginGraphViewComponent.onPluginBypassed =
         [this](juce::AudioProcessorGraph::NodeID nodeId)
-    { tryChangePluginBypassStateFromGraphView(nodeId); };
+    { app.requestBypassPlugin(nodeId); };
 
     pluginGraphViewComponent.onPluginRemoved =
         [this](juce::AudioProcessorGraph::NodeID nodeId)
-    { tryRemovePluginFromGraphView(nodeId); };
+    { app.requestRemovePlugin(nodeId); };
 
     pluginGraphViewComponent.onMidiMapRequested =
         [this](juce::AudioProcessorGraph::NodeID nodeId)
-    { tryMidiMapPluginFromGraphView(nodeId); };
-
-    refreshGraphView();
+    { app.requestMidiMapPlugin(nodeId); };
 }
 
 void MainComponent::openFirstMidiInput()
@@ -407,23 +201,13 @@ void MainComponent::openFirstMidiInput()
 
 void MainComponent::showPluginWindow(juce::AudioProcessorGraph::NodeID nodeId)
 {
-    if (auto it = pluginWindows.find(nodeId); it != pluginWindows.end())
+    if (pluginWindows[nodeId] == nullptr)
     {
-        it->second->setVisible(true);
-        it->second->toFront(true);
-        return;
+        pluginWindows[nodeId] = app.getPluginWindowForNode(nodeId);
     }
 
-    if (auto *processor = audioEngine.getProcessorForNode(nodeId))
-    {
-        pluginWindows[nodeId].reset();
-
-        pluginWindows[nodeId] =
-            std::make_unique<PluginWindow>(*processor);
-
-        pluginWindows[nodeId]->setVisible(true);
-        pluginWindows[nodeId]->toFront(true);
-    }
+    pluginWindows[nodeId]->setVisible(true);
+    pluginWindows[nodeId]->toFront(true);
 }
 
 void MainComponent::paint(juce::Graphics &g)
@@ -546,7 +330,6 @@ void MainComponent::handleIncomingMidiMessage(juce::MidiInput *,
 
     if (action->actionType == MidiActionType::toggleBypass)
     {
-        audioEngine.togglePluginBypass(action->nodeId);
-        refreshGraphView();
+        app.togglePluginBypass(action->nodeId);
     }
 }

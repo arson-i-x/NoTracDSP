@@ -2,7 +2,7 @@
 
 bool SetPluginOrderCommand::perform()
 {
-    auto status = audioEngine.setPluginOrder(newOrder);
+    auto status = app.setOrder(newOrder);
     if (!status.ok)
     {
         DBG("Failed to set plugin order: " + status.error);
@@ -20,7 +20,7 @@ bool SetPluginOrderCommand::undo()
         return false;
     }
 
-    auto status = audioEngine.setPluginOrder(*oldOrder);
+    auto status = app.setOrder(*oldOrder);
     if (!status.ok)
     {
         DBG("Failed to undo plugin order: " + status.error);

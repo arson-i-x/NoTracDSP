@@ -1,21 +1,21 @@
 #include "BypassPluginCommand.h"
 
-BypassPluginCommand::BypassPluginCommand(AudioEngine &engine,
-                                         const juce::AudioProcessorGraph::NodeID nodeId): audioEngine(engine),
+BypassPluginCommand::BypassPluginCommand(AppController &controller,
+                                         const juce::AudioProcessorGraph::NodeID nodeId): controller(controller),
                                                                                          nodeId(nodeId)
 {
-    oldState = audioEngine.isPluginBypassed(nodeId);
+    oldState = controller.getPluginGraphModel().isPluginBypassed(nodeId);
     newState = !oldState;
 }
 
 bool BypassPluginCommand::perform()
 {
-    return audioEngine.setPluginBypassed(nodeId, newState).ok;
+    return controller.setPluginBypassed(nodeId, newState).ok;
 }
 
 bool BypassPluginCommand::undo()
 {
-    auto status = audioEngine.setPluginBypassed(nodeId, oldState);
+    auto status = controller.setPluginBypassed(nodeId, oldState);
     DBG ("Undo BypassPluginCommand: " + (status.ok ? "Success" : "Failure: " + status.error));
     return status.ok;
 }

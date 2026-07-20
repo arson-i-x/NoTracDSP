@@ -52,8 +52,6 @@ class PresetManager : public juce::ChangeBroadcaster
 private:
     juce::File presetDirectory;
 
-    bool stateModified = false;
-
     PresetList<juce::String> presets;
 
     juce::String currentPresetName = "init";
@@ -61,14 +59,24 @@ public:
     PresetManager();
     ~PresetManager();
     void loadPresets();
+
+    // Preset management functions - used by AppController
     Status savePreset(const juce::String& fileName, const juce::ValueTree& saveState);
     Status deletePreset(const juce::File& preset);
-    Status setCurrentPreset(int selectedIndex);
-    Status setCurrentPreset(juce::ValueTree presetState);
-    const juce::String getCurrentPresetName() const { return currentPresetName; }
-    PresetList<juce::String> getPresets() const;
-    bool isModified() const { return stateModified; }
-    std::function<void(juce::ValueTree)> onPresetChanged; // Callback for when presets are changed
+
+    // Preset selection functions - used by AppController
+    std::map<juce::String, Status> setCurrentPreset(int selectedIndex);
+    std::map<juce::String, Status> setCurrentPreset(juce::ValueTree presetState);
+
+    // Getters for UI elements - used by PresetManagerComponent
+    const juce::String& getCurrentPresetName() const noexcept { return currentPresetName; }
+    const PresetList<juce::String>& getPresets() const noexcept { return presets; }
+
+    // Callback for when presets are changed, which should return a map of preset names to their corresponding Status objects
+    std::function<std::map<juce::String, Status>(juce::ValueTree)> onPresetChanged; 
+
+    // Callback for when the preset list is updated
+    std::function<void()> onPresetListUpdated;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PresetManager)
 };

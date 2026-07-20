@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/AudioEngine.h"
+#include "core/AppController.h"
 #include "commands/AppCommand.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <optional>
@@ -9,12 +9,12 @@ class SetPluginOrderCommand : public AppCommand
 {
 public:
     SetPluginOrderCommand(
-        AudioEngine& engine, 
+        AppController& app, 
         const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder
     )
-        : audioEngine(engine), newOrder(newOrder)
+        : app(app), newOrder(newOrder)
     {
-        oldOrder = audioEngine.getPluginOrder();
+        oldOrder = app.getPluginOrder();
     }
     ~SetPluginOrderCommand() = default;
     bool perform() override;
@@ -23,7 +23,7 @@ public:
     int getSizeInUnits() override;
 
 private:
-    AudioEngine& audioEngine;
+    AppController& app;
 
     std::optional<std::vector<juce::AudioProcessorGraph::NodeID>> oldOrder;
     std::vector<juce::AudioProcessorGraph::NodeID> newOrder;

@@ -9,22 +9,17 @@ void PresetManagerComponent::resized()
     savePresetButton.setBounds(buttonArea);
 }
 
-PresetManagerComponent::PresetManagerComponent(AudioEngine &engine, juce::UndoManager &undoManager)
-    : undoManager(undoManager),
-      audioEngine(engine),
-    presetManager(),
+PresetManagerComponent::PresetManagerComponent(AppController& appController)
+    : app(appController),
       savePresetButton("Save Preset"),
       presetComboBox("UserPresets")
 {
+    app.setPresetManagerCallback([this]() { updatePresetComboBox(); });
+
     presetComboBox.setEditableText(false);
     presetComboBox.addListener(this);
 
-    presetManager.addChangeListener(this); // Listen for changes in the preset manager
-    presetManager.onPresetChanged = [this](const juce::ValueTree& newPreset)
-    {
-        if (onPresetChanged)
-            onPresetChanged(newPreset);
-    };
+    // presetManager.addChangeListener(this); // Listen for changes in the preset manager
 
     auto saveImage = resources.getIcon(IconType::SavePreset);
 
@@ -56,7 +51,10 @@ PresetManagerComponent::PresetManagerComponent(AudioEngine &engine, juce::UndoMa
 
 PresetManagerComponent::~PresetManagerComponent()
 {
-    presetManager.removeChangeListener(this); // Remove listener when PresetManagerComponent is destroyed to prevent dangling pointers
+    app.removeChangeListener(this);           // Remove listener when PresetManagerComponent is destroyed to prevent dangling pointers
+    
+    app.setPresetManagerCallback(nullptr); // Remove the callback to prevent dangling pointers
+    
     presetComboBox.removeListener(this);      // Remove listener when PresetManagerComponent is destroyed to prevent dangling pointers
 }
 
@@ -64,7 +62,7 @@ void PresetManagerComponent::updatePresetComboBox()
 {
     presetComboBox.clear(juce::dontSendNotification);
 
-    auto presets = presetManager.getPresets();
+    auto presets = app.getPresets();
 
     for (int id = 1; id <= presets.size(); id++)
     {
@@ -73,7 +71,7 @@ void PresetManagerComponent::updatePresetComboBox()
     }
 
     presetComboBox.setText(
-        presetManager.getCurrentPresetName(), 
+        app.getCurrentPresetName(), 
         juce::dontSendNotification); // Select the current preset by default
 
     // reset colour to default after updating the combo box
@@ -84,16 +82,11 @@ void PresetManagerComponent::updatePresetComboBox()
 
 void PresetManagerComponent::changeListenerCallback(juce::ChangeBroadcaster *source)
 {
-    if (source == &presetManager)
-    {
-        updatePresetComboBox();
-    }
-
-    if (source == &audioEngine)
+    if (source == &app)
     {
         // Update the combo box to show the current preset is modified
         presetComboBox.setText(
-            presetManager.getCurrentPresetName() + "*", 
+            app.getCurrentPresetName() + "*", 
             juce::dontSendNotification); 
     }
 }
@@ -112,11 +105,10 @@ void PresetManagerComponent::openRenameWindow()
         auto presetName = renameWindow.getTextEditor("presetName")->getText();
         if (!presetName.isEmpty())
         {
-            auto state = audioEngine.createPresetState();
-            auto result = presetManager.savePreset(presetName, state);
+            auto state = app.createPresetState();
+            auto result = app.savePreset(presetName, state);
             if (result.ok)
-            {
-                presetManager.loadPresets();                                    // Reload presets after saving
+            {                             
                 presetComboBox.setText(presetName, juce::dontSendNotification); // Update the combo box to show the new preset
             }
             else
@@ -133,17 +125,10 @@ void PresetManagerComponent::comboBoxChanged(juce::ComboBox *comboBoxThatHasChan
     {
         int selectedIndex = presetComboBox.getSelectedId();
 
-        if (selectedIndex < 1 || selectedIndex > presetManager.getPresets().size())
-        {
+        if (selectedIndex < 1 || selectedIndex > app.getPresets().size())
             return;
-        }
 
-        if (selectedIndex >= 1 && selectedIndex <= presetManager.getPresets().size())
-        {
-            undoManager.beginNewTransaction("Change Preset to: " + presetManager.getPresets()[selectedIndex]);
-
-            auto oldState = audioEngine.createPresetState();
-            undoManager.perform(new ChangePresetCommand(presetManager, selectedIndex, oldState));
-        }
+        if (selectedIndex >= 1 && selectedIndex <= app.getPresets().size())
+            app.setCurrentPreset(selectedIndex);
     }
 }

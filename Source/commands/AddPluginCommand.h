@@ -1,15 +1,14 @@
 #pragma once
 
-#include "core/AudioEngine.h"
+#include "core/AppController.h"
 #include "commands/AppCommand.h"
-#include "ui/PluginWindow.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class AddPluginCommand : public AppCommand
 {
 private:
     // references to the audio engine and format manager
-    AudioEngine& audioEngine;
+    AppController& controller;
 
     // store a copy of the plugin description to be added
     const juce::PluginDescription desc;
@@ -19,9 +18,9 @@ private:
     std::optional<juce::AudioProcessorGraph::NodeID> addedNodeId;
 
 public:
-    AddPluginCommand(AudioEngine& engine,
+    AddPluginCommand(AppController& controller,
                      const juce::PluginDescription& desc)
-        : audioEngine(engine),
+        : controller(controller),
           desc(desc)
     {
     }

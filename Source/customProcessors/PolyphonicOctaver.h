@@ -4,17 +4,10 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-#include "core/AudioEngine.h"
-
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new PolyphonicOctaver();
-}
-
 class PolyphonicOctaver : public juce::AudioProcessor
 {
 public:
-    PolyphonicOctaver(AudioEngine& engine);
+    PolyphonicOctaver();
     ~PolyphonicOctaver() override;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
@@ -39,10 +32,15 @@ public:
 
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
+    
+    static juce::PluginDescription getPluginDescription();
 private:
-    AudioEngine& audioEngine;
-
     juce::AudioProcessorValueTreeState parameters;
     std::atomic<float> mixLevel{ 1.0f };
-    std::atomic<float> pitchShiftAmount{ 12.0f }; // Default to one octave up
+    std::atomic<float> pitchShiftAmount{ -12.0f }; // Default to one octave down
 };
+
+inline juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new PolyphonicOctaver();
+}

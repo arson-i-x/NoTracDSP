@@ -16,11 +16,6 @@ PresetManager::PresetManager()
     loadPresets();
 }
 
-PresetList<juce::String> PresetManager::getPresets() const
-{
-    return presets;
-}
-
 PresetManager::~PresetManager()
 {
 }
@@ -35,12 +30,12 @@ void PresetManager::loadPresets()
             false,
             "*.preset");
 
-    for (const auto file : presetFiles)
+    for (const auto &file : presetFiles)
     {
         presets.push_back(file.getFileNameWithoutExtension());
     }
 
-    sendChangeMessage(); // Notify listeners that the preset list has changed
+    sendChangeMessage(); // Notify listeners about the update
 }
 
 Status PresetManager::savePreset(const juce::String &fileName, const juce::ValueTree &saveState)
@@ -58,7 +53,7 @@ Status PresetManager::savePreset(const juce::String &fileName, const juce::Value
             return Status::success();
     }
 
-    sendChangeMessage(); // Notify listeners that the preset list has changed
+    sendChangeMessage(); // Notify listeners about the update
 
     return Status::failure("Failed to save preset.");
 }
@@ -72,59 +67,59 @@ Status PresetManager::deletePreset(const juce::File &preset)
 
     loadPresets(); // Reload presets to update the list after deletion
 
-    sendChangeMessage(); // Notify listeners that the preset list has changed
+    sendChangeMessage(); // Notify listeners about the update
 
     return Status::success();
 }
 
-Status PresetManager::setCurrentPreset(juce::ValueTree presetState)
+std::map<juce::String, Status> PresetManager::setCurrentPreset(juce::ValueTree presetState)
 {
     JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED; // Ensure this is called on the main thread
 
     if (!presetState.hasType("NoTracPreset"))
-        return Status::failure("Invalid preset state.");
+        throw std::invalid_argument("Invalid preset state: missing 'NoTracPreset' type.");
 
     auto chain = presetState.getChildWithName("PluginChain");
 
     if (!chain.isValid())
-        return Status::failure("Preset has no plugin chain.");
-
-    stateModified = false;
+        throw std::invalid_argument("Invalid preset state: missing 'PluginChain' child.");
 
     currentPresetName = presetState.getProperty("name", "init").toString();
 
-    onPresetChanged(presetState); // Notify listeners about the change
-
-    sendChangeMessage(); // Notify listeners that the preset has changed
-
-    return Status::success();
+    return onPresetChanged(presetState); // Notify listeners about the change
 }
 
-Status PresetManager::setCurrentPreset(int selectedIndex)
+std::map<juce::String, Status> PresetManager::setCurrentPreset(int selectedIndex)
 {
-    if (selectedIndex < 1 || selectedIndex > presets.size())
-        return Status::failure("Invalid preset index.");
+    JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED; // Ensure this is called on the main thread
+
+    if (selectedIndex < 1 || selectedIndex > static_cast<int>(presets.size()))
+        throw std::invalid_argument("Invalid preset index.");
 
     auto preset = presets[selectedIndex];
 
     auto presetFile = presetDirectory.getChildFile(preset + ".preset");
 
     if (!presetFile.existsAsFile())
-        return Status::failure("Preset file does not exist.");
+        throw std::invalid_argument("Preset file does not exist.");
 
     // Load the preset and notify listeners
     auto xml = juce::XmlDocument::parse(presetFile.loadFileAsString());
 
     if (xml == nullptr)
-        return Status::failure("Failed to parse preset.");
+        throw std::invalid_argument("Failed to parse preset.");
 
-    stateModified = false;
+    juce::ValueTree presetState = juce::ValueTree::fromXml(*xml);
+
+    if (!presetState.hasType("NoTracPreset"))
+        throw std::invalid_argument("Invalid preset state: missing 'NoTracPreset' type.");
+
+    auto chain = presetState.getChildWithName("PluginChain");
+
+    if (!chain.isValid())
+        throw std::invalid_argument("Invalid preset state: missing 'PluginChain' child.");
 
     currentPresetName = preset;
     
-    onPresetChanged(juce::ValueTree::fromXml(*xml)); // Notify listeners about the change
-
-    sendChangeMessage(); // Notify listeners that the preset has changed
-
-    return Status::success();
+    return onPresetChanged(presetState); // Notify listeners about the change
 }

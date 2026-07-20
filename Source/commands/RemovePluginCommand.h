@@ -1,16 +1,15 @@
 #pragma once
 
-#include "core/AudioEngine.h"
+#include "core/AppController.h"
 #include "commands/AppCommand.h"
 #include <juce_audio_processors/juce_audio_processors.h>
-#include <optional>
 
 class RemovePluginCommand : public AppCommand
 {
 public:
-    RemovePluginCommand(AudioEngine &engine,
-                                         juce::AudioProcessorGraph::NodeID nodeId)
-    : audioEngine(engine),
+    RemovePluginCommand(AppController &controller,
+                        juce::AudioProcessorGraph::NodeID nodeId)
+    : controller(controller),
       nodeId(nodeId)
     {
     }
@@ -21,8 +20,8 @@ public:
     int getSizeInUnits() override;
 
 private:
-    AudioEngine& audioEngine;
-  juce::AudioProcessorGraph::NodeID nodeId;
+    AppController& controller;
+    juce::AudioProcessorGraph::NodeID nodeId;
 
-    std::optional<PluginSnapshot> removedPlugin;
+    std::unique_ptr<ActivePlugin> removedPlugin;
 };

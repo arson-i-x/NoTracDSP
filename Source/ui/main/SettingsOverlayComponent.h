@@ -4,19 +4,20 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "core/MidiMapping.h"
-#include "core/AudioEngine.h"
+#include "core/AppController.h"
 
 class SettingsOverlayComponent : public juce::Component,
                                  private juce::ChangeListener
 {
 public:
-    SettingsOverlayComponent(AudioEngine& engine);
+    SettingsOverlayComponent(AppController& app);
 
     ~SettingsOverlayComponent()
     {
         setVisible(false);
         deviceSelector.reset();
-        audioEngine.removeStatusListener(this);
+        // ioEngine.removeStatusListener(this);
+        // app.removeStatusListener(this);
     }
 
     void openForPlugin(juce::AudioProcessorGraph::NodeID nodeId,
@@ -64,5 +65,5 @@ private:
     juce::Label deviceLatencyLabel;
     juce::Label deviceStatusLabel;
 
-    AudioEngine& audioEngine;
+    AppController& app;
 };

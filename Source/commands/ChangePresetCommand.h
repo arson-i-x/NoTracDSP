@@ -1,17 +1,19 @@
-#include "core/PresetManager.h"
+#pragma once
+
+#include "core/AppController.h"
 #include "commands/AppCommand.h"
 
 class ChangePresetCommand : public AppCommand
 {
 private:
-    PresetManager& presetManager;
+    AppController& app;
 
     juce::ValueTree oldState;
     
     int presetId;
 public:
     ChangePresetCommand(
-        PresetManager& manager, 
+        AppController& app, 
         int presetId,
         juce::ValueTree previousState
     );

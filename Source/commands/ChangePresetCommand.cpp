@@ -1,21 +1,17 @@
 #include "ChangePresetCommand.h"
-#include "core/AppMessageBus.h"
 
-ChangePresetCommand::ChangePresetCommand(PresetManager& manager, int presetId, juce::ValueTree previousState)
-    : presetManager(manager), oldState(std::move(previousState)), presetId(presetId)
+ChangePresetCommand::ChangePresetCommand(AppController& app, int presetId, juce::ValueTree previousState)
+    : app(app), oldState(std::move(previousState)), presetId(presetId)
 {
 }
 
 bool ChangePresetCommand::perform()
 {
-    auto status = presetManager.setCurrentPreset(presetId);
+    auto status = app.setCurrentPreset(presetId);
     
     if (!status.ok)
     {
         DBG("Failed to change preset: " + status.error);
-
-        AppMessageBus::getInstance().error("Error Changing Preset", status.error);
-
         return false;
     }
 
@@ -26,14 +22,11 @@ bool ChangePresetCommand::perform()
 bool ChangePresetCommand::undo()
 {
     // Restore the old state of the preset
-    auto status = presetManager.setCurrentPreset(oldState);
+    auto status = app.setCurrentPreset(oldState);
     
     if (!status.ok)
     {
         DBG("Failed to restore preset: " + status.error);
-
-        AppMessageBus::getInstance().error("Error Restoring Preset", status.error);
-
         return false;
     }
 

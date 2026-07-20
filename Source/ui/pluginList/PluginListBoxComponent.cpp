@@ -1,11 +1,13 @@
 #include "PluginListBoxComponent.h"
 
-PluginListBoxComponent::PluginListBoxComponent(juce::KnownPluginList& knownPluginList) 
+PluginListBoxComponent::PluginListBoxComponent(juce::KnownPluginList& knownPluginList)
             : knownPluginList(knownPluginList)
 {
+    model = std::make_unique<PluginListModel>(this->knownPluginList.getTypes());
+
     pluginListBox.setMultipleSelectionEnabled(false);
     pluginListBox.setClickingTogglesRowSelection(false);
-    pluginListBox.setModel(&model);
+    pluginListBox.setModel(model.get());
     setVisible(true);
 
     pluginScannerLabel.setText ("Plugin Scanner", juce::dontSendNotification);
@@ -76,6 +78,7 @@ void PluginListBoxComponent::updateScanSettings()
 
 void PluginListBoxComponent::refreshPluginList()
 {
+    model->pluginDescriptions = knownPluginList.getTypes();
     DBG("Updating plugin list with " + juce::String(knownPluginList.getTypes().size()) + " plugins.");
     pluginListBox.updateContent();
     repaint();
@@ -147,29 +150,17 @@ void PluginListBoxComponent::resized() {
 
 void PluginListBoxComponent::choosePlugin() 
 {
-    int selectedRow = pluginListBox.getSelectedRow();
-
-    if (selectedRow < 0)
-        return;
-
-    const auto& types = model.getPluginDescriptions();
-
-    if (selectedRow >= types.size())
-        return;
-
     if (onPluginChosen)
-        onPluginChosen(types[selectedRow]);
-}
-
-juce::Array<juce::PluginDescription> PluginListModel::getPluginDescriptions() const
     {
-        return pluginList.getTypes();
+        const int selectedRow = pluginListBox.getSelectedRow();
+        if (selectedRow >= 0 && selectedRow < model->getNumRows())
+            onPluginChosen(model->getPluginDescription(selectedRow));
     }
-
-    
+}
+  
 int PluginListModel::getNumRows()
    {
-        return pluginList.getTypes().size();
+        return pluginDescriptions.size();
     }
 
 void PluginListModel::paintListBoxItem(int rowNumber,
@@ -179,38 +170,18 @@ void PluginListModel::paintListBoxItem(int rowNumber,
                                         bool rowIsSelected)
 
     {
-
-        auto types = pluginList.getTypes();
-
-        if (rowNumber >= types.size())
+        if (rowNumber >= pluginDescriptions.size())
             return;
 
         if (rowIsSelected)
             g.fillAll(juce::Colours::darkgrey);
 
         g.setColour(juce::Colours::white);
-        g.drawText(types[rowNumber].name, 4, 0, width, height,
+        g.drawText(pluginDescriptions[rowNumber].name, 4, 0, width, height,
                     juce::Justification::centredLeft);
 
-        g.drawText(types[rowNumber].name,
+        g.drawText(pluginDescriptions[rowNumber].name,
                    4, 0,
                    width, height,
                    juce::Justification::centredLeft);
     }
-    // {
-    //     if (pluginList == nullptr || rowNumber < 0 || rowNumber >= pluginList->getTypes().size())
-    //         return;
-
-    //     const auto& desc = pluginList->getTypes()[rowNumber];
-
-    //     if (rowIsSelected)
-    //         g.fillAll(juce::Colour(0xff2b3440));
-
-    //     g.setColour(juce::Colour(0xff8bd3ff));
-    //     g.setFont(juce::Font { juce::FontOptions (16.0f, juce::Font::bold) });
-    //     g.drawText(desc.name, 4, 0, width - 4, height / 2, juce::Justification::centredLeft);
-
-    //     g.setColour(juce::Colour(0xffc7d0db));
-    //     g.setFont(juce::Font { juce::FontOptions (14.0f) });
-    //     g.drawText(desc.pluginFormatName + " - " + desc.fileOrIdentifier, 4, height / 2, width - 4, height / 2, juce::Justification::centredLeft);
-    // }

@@ -2,26 +2,6 @@
 
 #include <algorithm>
 
-void PluginGraphViewComponent::setPlugins(const std::vector<PluginGraphItem>& plugins)
-{
-    items = plugins;
-
-    if (selectedPluginId.has_value())
-    {
-        const bool stillExists = std::any_of(items.begin(), items.end(),
-            [this](const PluginGraphItem& item)
-            {
-                return item.nodeId == *selectedPluginId;
-            });
-
-        if (!stillExists)
-            selectedPluginId.reset();
-    }
-
-    layoutItems();
-    repaint();
-}
-
 int PluginGraphViewComponent::getInsertIndexForX(int x) const
 {
     int insertIndex = 0;

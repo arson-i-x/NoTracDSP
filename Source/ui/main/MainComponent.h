@@ -1,29 +1,17 @@
 #pragma once
 
-#include "core/AudioEngine.h"
-#include <thread>
+#include "core/AppController.h"
 #include <memory>
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 
-#include "ui/PluginWindow.h"
 #include "PresetManagerComponent.h"
 #include "PluginGraphViewComponent.h"
 #include "SettingsOverlayComponent.h"
 
-#include "ui/pluginList/PluginListWindow.h"
-
 #include "core/MidiMapping.h"
 #include "core/MidiMappingManager.h"
 #include "core/AppMessageBus.h"
-#include "core/Result.h"
-#include "core/Status.h"
-
-#include "commands/BypassPluginCommand.h"
-#include "commands/AddPluginCommand.h"
-#include "commands/RemovePluginCommand.h"
-#include "commands/SetPluginOrderCommand.h"
-// #include "commands/RestorePluginSnapshotCommand.h"
 
 #include "ui/ResourcesHelper.h"
 
@@ -32,11 +20,15 @@ class MainComponent final : public juce::Component,
                             private juce::MidiInputCallback
 {
 public:
-    MainComponent()
+    MainComponent() :
+        presetManagerComponent(app),
+        pluginListBoxComponent(app.getKnownPluginList()),
+        pluginGraphViewComponent(app)
     {
         // GUI thread: build the control surface and wire it to the audio engine.
         setOpaque (true);
         setWantsKeyboardFocus (true);
+        
         createTitleLabel();
         createSettingsOverlay();
         createMasterGainUI();
@@ -46,15 +38,23 @@ public:
         createPluginListButton();
         createPluginGraphViewWithCallbacks();
         createUndoRedoButtons();
+        
         openFirstMidiInput();
+        
         updateGainReadout();
         updateDelayReadout();
-        createPresetManagerBox();
+        
+        addAndMakeVisible(presetManagerComponent);
+
         setSize (1440, 900);
 
         AppMessageBus::getInstance().onMessage = [this](const AppMessage& message)
         {
-            juce::Logger::writeToLog("[USER MESSAGE]" + message.title + ": " + message.message);
+            juce::String severityStr = (message.severity == AppMessageSeverity::info) ? "INFO" :
+                                    (message.severity == AppMessageSeverity::warning) ? "WARNING" :
+                                    (message.severity == AppMessageSeverity::error) ? "ERROR" : "UNKNOWN";
+                                    
+            juce::Logger::writeToLog("[" + severityStr + "]" + message.title + ": " + message.message);
             juce::AlertWindow::showMessageBoxAsync(
                 message.severity == AppMessageSeverity::error ? juce::AlertWindow::AlertIconType::WarningIcon
                                                                : juce::AlertWindow::AlertIconType::InfoIcon,
@@ -64,9 +64,8 @@ public:
     }
     ~MainComponent() override 
     {
-        audioEngine.shutdown();
+        app.shutdown();
         pluginWindows.clear();
-        undoManager.clearUndoHistory();
         devices.clear();
         midiInput.reset();
         midiLearnTarget.reset();
@@ -89,25 +88,15 @@ private:
     void createTitleLabel();
     void createSettingsOverlay();
     void createUndoRedoButtons();
-    void createPresetManagerBox();
-
-    void tryRemovePluginFromGraphView(juce::AudioProcessorGraph::NodeID nodeId);
-    void tryChangePluginOrderFromGraphView(const std::vector<juce::AudioProcessorGraph::NodeID>& newOrder);
-    void tryChangePluginBypassStateFromGraphView(juce::AudioProcessorGraph::NodeID nodeId);
-    void tryMidiMapPluginFromGraphView(juce::AudioProcessorGraph::NodeID nodeId);
-    void tryAddPluginFromList(const juce::PluginDescription& description);
-    void tryRestorePluginSnapshotFromGraphView(juce::AudioProcessorGraph::NodeID nodeId);
 
     void openPluginListWindow();
     void closePluginListWindow();
 
     bool sidebarOpened = false;
 
-    juce::UndoManager undoManager;
+    AppController app;
 
-    AudioEngine audioEngine;
-
-    PresetManagerComponent presetManagerComponent { audioEngine, undoManager };
+    PresetManagerComponent presetManagerComponent;
 
     ImageResources resources;
         
@@ -117,7 +106,7 @@ private:
 
     std::unique_ptr<juce::MidiInput> midiInput;
 
-    SettingsOverlayComponent settingsOverlay { audioEngine };
+    SettingsOverlayComponent settingsOverlay { app };
 
     std::optional<juce::AudioProcessorGraph::NodeID> midiLearnTarget;
 
@@ -125,13 +114,12 @@ private:
     juce::Label titleLabel;
 
     juce::TextButton openPluginListWindowButton;
-    // std::unique_ptr<PluginListWindow> pluginListWindow;
-    PluginListBoxComponent pluginListBoxComponent { audioEngine.getKnownPluginList() };
+
+    PluginListBoxComponent pluginListBoxComponent;
 
     // juce::TextButton showPluginGraphViewButton;
     PluginGraphViewComponent pluginGraphViewComponent;
 
-        // temporary first plugin window
     std::map<juce::AudioProcessorGraph::NodeID,
          std::unique_ptr<PluginWindow>> pluginWindows;
 

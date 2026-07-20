@@ -5,7 +5,6 @@
 #include <filesystem>
 #include <string>
 #include "core/AppMessageBus.h"
-#include "core/AudioEngine.h"
 
 class PluginScannerCoordinator : public juce::ChildProcessCoordinator
 {

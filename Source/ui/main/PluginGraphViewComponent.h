@@ -5,23 +5,34 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "core/AppController.h"
+#include "core/PluginGraphModel.h"
 
 struct PluginGraphItem
 {
+    int chainIndex = -1;
     juce::AudioProcessorGraph::NodeID nodeId;
-    juce::PluginDescription desc;
+    const juce::PluginDescription* desc = nullptr;
     juce::String displayName;
     bool bypassed = false;
     juce::Rectangle<int> bounds;
     juce::Rectangle<int> removeButtonBounds;
 };
 
-class PluginGraphViewComponent : public juce::Component
+class PluginGraphViewComponent : public juce::Component,
+                                 public juce::ChangeListener
 {
 public:
-    PluginGraphViewComponent() = default;
+    PluginGraphViewComponent(AppController& app) : model(app.getPluginGraphModel()) 
+    {
+        model.addChangeListener(this);
+        refreshPluginItems();
+    }
 
-    void setPlugins(const std::vector<PluginGraphItem>& plugins);
+    ~PluginGraphViewComponent() override 
+    {
+        model.removeChangeListener(this);
+    };
 
     std::function<void(juce::AudioProcessorGraph::NodeID)> onPluginDoubleClicked;
     std::function<void(const std::vector<juce::AudioProcessorGraph::NodeID>&)> onOrderChanged;
@@ -38,8 +49,14 @@ public:
     void mouseUp(const juce::MouseEvent& event) override;
     int getInsertIndexForX(int x) const;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
+    void changeListenerCallback(juce::ChangeBroadcaster* source) override 
+    {
+        refreshPluginItems();
+    };
 
 private:
+    PluginGraphModel& model;
+    
     std::vector<PluginGraphItem> items;
 
     std::optional<juce::AudioProcessorGraph::NodeID> selectedPluginId;
@@ -48,6 +65,35 @@ private:
     int hoveredIndex = -1;
     juce::Point<int> dragOffset;
     bool didDrag = false;
+
+    void refreshPluginItems()
+    {
+        getItemsFromModel();
+        layoutItems();
+        repaint();
+    }
+
+    void getItemsFromModel()
+    {
+        items.clear();
+        for (const auto& entry : model.getPluginMap())
+        {
+            const auto& nodeId = entry.first;
+            const auto& plugin = entry.second;
+
+            PluginGraphItem item {
+                .chainIndex = plugin.chainIndex,
+                .nodeId = nodeId,
+                .desc = plugin.desc,
+                .displayName = plugin.displayName,
+                .bypassed = plugin.bypassed,
+                .bounds = { 0, 0, 150, 64 },
+                .removeButtonBounds = { 0, 0, 20, 20 },
+            };
+
+            items.push_back(item);
+        }
+    }
 
     int getItemIndexAt(juce::Point<int> position) const
     {

@@ -1,5 +1,4 @@
 #include "PluginListWindow.h"
-#include "core/AudioEngine.h"
 
 void PluginListWindow::closeButtonPressed()
 {

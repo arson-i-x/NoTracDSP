@@ -1,18 +1,15 @@
 // Custom Plugin List box that derives from knownPluginList 
 // and creates a UI box to load plugins in the engine
-#include <juce_gui_basics/juce_gui_basics.h>
-#include <juce_audio_processors/juce_audio_processors.h>
+#pragma once
+
 #include "scanner/PluginScannerCoordinator.h"
 #include "core/DirectoryManager.h"
-#include "core/Result.h"
-#include "core/Status.h"
-#include "commands/AppCommand.h"
 
 class PluginListModel : public juce::ListBoxModel
 {
 public:
-    PluginListModel(juce::KnownPluginList& pluginList) : 
-        pluginList(pluginList)
+    PluginListModel(const juce::Array<juce::PluginDescription>& pluginList) : 
+        pluginDescriptions(pluginList)
     {
     };
     int getNumRows() override;
@@ -23,13 +20,15 @@ public:
                           int height,
                           bool rowIsSelected) override;
 
-    juce::Array<juce::PluginDescription> getPluginDescriptions() const;
+    juce::Array<juce::PluginDescription> pluginDescriptions; // Store the plugin descriptions for rendering
 
-    juce::KnownPluginList& getPluginList() const { return pluginList; }
+    juce::PluginDescription getPluginDescription(int rowNumber) const
+    {
+        jassert(rowNumber >= 0 && rowNumber < pluginDescriptions.size());
+        return pluginDescriptions[rowNumber];
+    }
 
 private:
-    juce::KnownPluginList& pluginList;
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginListModel)
 };
 
@@ -39,8 +38,6 @@ public:
     PluginListBoxComponent(juce::KnownPluginList& knownPluginList);
 
     void resized() override;
-
-    juce::KnownPluginList& getKnownPluginList() const {return knownPluginList;}
 
     std::function<void(const juce::PluginDescription&)> onPluginChosen;
 
@@ -52,8 +49,8 @@ private:
 
     juce::KnownPluginList& knownPluginList;
 
-    PluginListModel model { knownPluginList };
-    juce::ListBox pluginListBox { "Plugin List", &model };
+    std::unique_ptr<PluginListModel> model;
+    juce::ListBox pluginListBox { "Plugin List", nullptr };
 
     DirectoryManager directoryManager;
 

@@ -2,34 +2,34 @@
 
 bool RemovePluginCommand::perform()
 {
-    auto snapshot = audioEngine.getPluginSnapshot(nodeId);
-    if (!snapshot.ok)
-        return false;
+    removedPlugin = controller.getPluginSnapshot(nodeId);
 
-    removedPlugin = snapshot.value;
-
-    auto status = audioEngine.removePlugin(nodeId);
-    if (!status.ok && !removedPlugin.has_value())
+    if (!removedPlugin)
     {
-        DBG("Cannot remove plugin: " + status.error);
+        DBG("Failed to get plugin snapshot for plugin: " + controller.getPluginDisplayName(nodeId));
         return false;
     }
+
+    auto status = controller.removePlugin(nodeId);
+    if (!status.ok)
+        return false;
+
     return true;
 }
 
 bool RemovePluginCommand::undo()
 {
-    if (!removedPlugin.has_value())
+    if (!removedPlugin)
     {
         DBG("Cannot undo RemovePluginCommand: no removed plugin snapshot.");
         return false;
     }
 
-    auto restored = audioEngine.restorePluginSnapshot(*removedPlugin);
-    if (!restored.ok || restored.value == nullptr)
+    auto restored = controller.restorePluginSnapshot(*removedPlugin);
+    if (!restored.ok)
         return false;
 
-    nodeId = restored.value->nodeID;
+    nodeId = restored.value;
     return true;
 }
 

@@ -1,9 +1,10 @@
 #include "SettingsOverlayComponent.h"
 
-SettingsOverlayComponent::SettingsOverlayComponent(AudioEngine& engine)
-    : audioEngine(engine)
+SettingsOverlayComponent::SettingsOverlayComponent(AppController& app)
+    : app(app)
 {
-    audioEngine.addStatusListener(this);
+    // ioEngine.addStatusListener(this);
+    // app.addStatusListener(this);
 
     addAndMakeVisible(titleLabel);
     titleLabel.setText("Settings", juce::dontSendNotification);
@@ -68,7 +69,7 @@ void SettingsOverlayComponent::createDeviceStatusUI()
 
 void SettingsOverlayComponent::createDeviceSelectorUI()
     {
-        deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent>(audioEngine.getAudioDeviceManager(),
+        deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent>(app.getAudioDeviceManager(),
                                                                              2,
                                                                              256,
                                                                              2,
@@ -126,7 +127,7 @@ void SettingsOverlayComponent::changeListenerCallback(juce::ChangeBroadcaster *)
 
 void SettingsOverlayComponent::updateDeviceLabels()
 { 
-        const auto status = audioEngine.getDeviceStatus();
+        const auto status = app.getDeviceStatus();
 
         deviceTypeLabel.setText("Device type: " + status.deviceType, juce::dontSendNotification);
         deviceNameLabel.setText("Device: " + status.deviceName, juce::dontSendNotification);

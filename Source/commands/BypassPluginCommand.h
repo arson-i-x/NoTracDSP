@@ -1,16 +1,18 @@
-#include "core/AudioEngine.h"
+#pragma once
+
+#include "core/AppController.h"
 #include "commands/AppCommand.h"
 
 class BypassPluginCommand : public AppCommand
 {
 private:
-    AudioEngine& audioEngine;
+    AppController& controller;
     const juce::AudioProcessorGraph::NodeID nodeId;
 
     bool oldState = false;
     bool newState = false;
 public:
-    BypassPluginCommand(AudioEngine& engine,
+    BypassPluginCommand(AppController& controller,
                      const juce::AudioProcessorGraph::NodeID nodeId);
 
     bool perform() override;
