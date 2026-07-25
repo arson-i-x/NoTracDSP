@@ -12,8 +12,17 @@ PluginScannerCoordinator::PluginScannerCoordinator(juce::KnownPluginList& knownP
     knownPluginsFile = appData.getChildFile("known_plugins.xml");
     
     if (knownPluginsFile.existsAsFile())
+    {
         if (auto xml = juce::XmlDocument::parse(knownPluginsFile))
-            knownPluginList.recreateFromXml(*xml);
+        {
+            // Merge persisted plugins so pre-registered internal plugins are retained.
+            juce::KnownPluginList persistedPlugins;
+            persistedPlugins.recreateFromXml(*xml);
+
+            for (const auto& desc : persistedPlugins.getTypes())
+                knownPluginList.addType(desc);
+        }
+    }
 }
 
 void PluginScannerCoordinator::saveKnownPluginList() 

@@ -176,12 +176,18 @@ void PluginListModel::paintListBoxItem(int rowNumber,
         if (rowIsSelected)
             g.fillAll(juce::Colours::darkgrey);
 
-        g.setColour(juce::Colours::white);
-        g.drawText(pluginDescriptions[rowNumber].name, 4, 0, width, height,
-                    juce::Justification::centredLeft);
+        g.setColour(juce::Colours::red);
+        
 
-        g.drawText(pluginDescriptions[rowNumber].name,
-                   4, 0,
-                   width, height,
-                   juce::Justification::centredLeft);
+        if (pluginDescriptions[rowNumber].fileOrIdentifier.startsWith("notrac.internal"))
+        { // draw internal plugin name in a different color
+            g.setColour(juce::Colours::lightblue);
+            g.drawText(pluginDescriptions[rowNumber].name, 4, 0, width, height,
+                    juce::Justification::centredLeft);
+        }
+        else {
+            g.setColour(juce::Colours::white);
+            g.drawText(pluginDescriptions[rowNumber].name, 4, 0, width, height,
+                    juce::Justification::centredLeft);
+        }
     }

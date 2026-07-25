@@ -1,4 +1,5 @@
 #include "PolyphonicOctaver.h"
+#include "PolyphonicOctaverEditor.h"
 
 PolyphonicOctaver::PolyphonicOctaver()
     : AudioProcessor(BusesProperties().withInput("Input", juce::AudioChannelSet::stereo())
@@ -18,6 +19,9 @@ PolyphonicOctaver::~PolyphonicOctaver() {}
 
 void PolyphonicOctaver::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
+    internal.sampleRate = sampleRate;
+    internal.blockSize = samplesPerBlock;
+
     // Prepare any resources needed for processing
 }
 
@@ -35,12 +39,12 @@ void PolyphonicOctaver::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
 juce::AudioProcessorEditor* PolyphonicOctaver::createEditor()
 {
     // Return a pointer to the editor component for this processor
-    return nullptr; // Replace with actual editor if needed
+    return new PolyphonicOctaverEditor(*this); // Replace with actual editor if needed
 }
 
 bool PolyphonicOctaver::hasEditor() const
 {
-    return false; // Change to true if an editor is implemented
+    return true;
 }
 
 const juce::String PolyphonicOctaver::getName() const
@@ -117,7 +121,7 @@ juce::PluginDescription PolyphonicOctaver::getPluginDescription()
         desc.fileOrIdentifier = "notrac.internal.PolyphonicOctaver";
         desc.numInputChannels = 1;
         desc.numOutputChannels = 1;
-        desc.uniqueId = 0; // unique ID for the plugin, can be set to any value
+        desc.uniqueId = 4770707; // unique ID for the plugin, can be set to any value
         desc.version = "1.0.0";
         desc.manufacturerName = "NoTracDSP";
         desc.category = "Effect";

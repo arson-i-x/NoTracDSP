@@ -1,7 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
-#include "core/Result.h"
+#include <memory>
 #include "customProcessors/PolyphonicOctaver.h"
 
 class PluginRegistry
@@ -26,7 +26,10 @@ public:
     {
         if (desc.name == PolyphonicOctaver::getPluginDescription().name)
         {
-            return std::make_unique<PolyphonicOctaver>();
+            std::unique_ptr<PolyphonicOctaver> pluginInstance = 
+                std::make_unique<PolyphonicOctaver>();
+            pluginInstance->prepareToPlay(sampleRate, blockSize);
+            return pluginInstance;
         }
 
         DBG("Unknown custom plugin: " + desc.name);

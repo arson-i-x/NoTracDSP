@@ -36,7 +36,6 @@ class PluginListBoxComponent : public juce::Component
 {
 public:
     PluginListBoxComponent(juce::KnownPluginList& knownPluginList);
-
     void resized() override;
 
     std::function<void(const juce::PluginDescription&)> onPluginChosen;
