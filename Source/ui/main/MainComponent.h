@@ -13,6 +13,7 @@
 #include "core/MidiMappingManager.h"
 #include "core/AppMessageBus.h"
 
+#include "ui/pluginList/PluginListBoxComponent.h"
 #include "ui/ResourcesHelper.h"
 
 class MainComponent final : public juce::Component,
@@ -48,7 +49,7 @@ public:
 
         setSize (1440, 900);
 
-        AppMessageBus::getInstance().onMessage = [this](const AppMessage& message)
+        AppMessageBus::getInstance().onMessage = [](const AppMessage& message)
         {
             juce::String severityStr = (message.severity == AppMessageSeverity::info) ? "INFO" :
                                     (message.severity == AppMessageSeverity::warning) ? "WARNING" :
@@ -76,7 +77,7 @@ public:
     void resized() override;
     void showPluginWindow(juce::AudioProcessorGraph::NodeID nodeId);
     void refreshGraphView();
-    void handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& message);
+    void handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& message) override;
     void openFirstMidiInput();
     void startMidiLearnForPlugin(juce::AudioProcessorGraph::NodeID nodeId);
     MidiTrigger midiTriggerForSoftwareSwitch(int switchNumber);
