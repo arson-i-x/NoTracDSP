@@ -21,11 +21,16 @@ public:
         detectedPitchLabel.setJustificationType(juce::Justification::centred);
         detectedPitchLabel.setFont(juce::Font{juce::FontOptions(16.0f, juce::Font::bold)});
         addAndMakeVisible(detectedPitchLabel);
+
+        detectedNoteLabel.setText("Detected Note: N/A", juce::dontSendNotification);
+        detectedNoteLabel.setJustificationType(juce::Justification::centred);
+        detectedNoteLabel.setFont(juce::Font{juce::FontOptions(16.0f, juce::Font::bold)});
+        addAndMakeVisible(detectedNoteLabel);
     }
 
     ~PolyphonicOctaverEditor() override 
     {
-        audioProcessor.editorBeingDeleted();
+        audioProcessor.editorBeingDeleted(this);
     }
 
     void paint(juce::Graphics& g) override
@@ -34,7 +39,7 @@ public:
         g.setColour(juce::Colours::white);
         g.setFont(15.0f);
         g.drawFittedText("Polyphonic Octaver", getLocalBounds(), juce::Justification::centred, 1);
-
+        detectedNoteLabel.setText("Detected Note: " + audioProcessor.getDetectedNote(), juce::dontSendNotification);
         detectedPitchLabel.setText("Detected Pitch: " + juce::String(audioProcessor.getDetectedPitch()), juce::dontSendNotification);
     }
 
@@ -44,9 +49,11 @@ public:
         // For example:
         // mixLevelSlider.setBounds(10, 10, getWidth() - 20, 20);
         detectedPitchLabel.setBounds(10, 40, getWidth() - 20, 20);
+        detectedNoteLabel.setBounds(10, 70, getWidth() - 20, 20);
     }
 
 private:
     juce::Label detectedPitchLabel;
+    juce::Label detectedNoteLabel;
     PolyphonicOctaver& audioProcessor;
 };
