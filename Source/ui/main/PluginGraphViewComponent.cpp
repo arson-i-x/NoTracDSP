@@ -1,7 +1,5 @@
 #include "PluginGraphViewComponent.h"
 
-#include <algorithm>
-
 int PluginGraphViewComponent::getInsertIndexForX(int x) const
 {
     int insertIndex = 0;
@@ -57,7 +55,16 @@ void PluginGraphViewComponent::mouseUp(const juce::MouseEvent& event)
 
     if (didDrag)
     {
+        if (draggingIndex < 0 || draggingIndex >= (int) items.size())
+        {
+            draggingIndex = -1;
+            originalDragIndex = -1;
+            repaint();
+            return;
+        }
+
         const auto draggedItem = items[(size_t) draggingIndex];
+        
         const int dropX = draggedItem.bounds.getCentreX();
 
         items.erase(items.begin() + draggingIndex);
