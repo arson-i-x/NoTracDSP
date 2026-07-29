@@ -165,7 +165,11 @@ void MainComponent::createPluginGraphViewWithCallbacks()
 
     pluginGraphViewComponent.onPluginRemoved =
         [this](juce::AudioProcessorGraph::NodeID nodeId)
-    { app.requestRemovePlugin(nodeId); };
+    {
+        pluginWindows[nodeId]->setVisible(false);
+        pluginWindows.erase(nodeId);
+        app.requestRemovePlugin(nodeId); 
+    };
 
     pluginGraphViewComponent.onMidiMapRequested =
         [this](juce::AudioProcessorGraph::NodeID nodeId)
