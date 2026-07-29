@@ -4,6 +4,7 @@
 #include "commands/ChangePresetCommand.h"
 #include "commands/RemovePluginCommand.h"
 #include "commands/SetPluginOrderCommand.h"
+#include "juce_data_structures/juce_data_structures.h"
 
 AppController::AppController() : ioEngine(processingEngine)
 {
@@ -27,7 +28,14 @@ AppController::~AppController() noexcept
 
 void AppController::initializeIO()
 {
+    // save to a temporary preset state the current state of the plugin graph, 
+    // so that if the IO initialization fails, we can restore the previous state
+    juce::ValueTree tempPresetState = createPresetState();
+
+    processingEngine.clearGraph();
     processingEngine.prepare(ioEngine.getSampleRate(), ioEngine.getBlockSize(), 2, 2);
+
+    restorePresetState(tempPresetState);
 }
 
 void AppController::addStatusListener(juce::ChangeListener *listener)
