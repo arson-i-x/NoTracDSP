@@ -2,10 +2,12 @@
 
 #include "juce_core/juce_core.h"
 #include <atomic>
+#include <vector>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-class PolyphonicOctaver : public juce::AudioProcessor
+class PolyphonicOctaver : public juce::AudioProcessor,
+                          public juce::ChangeBroadcaster
 {
 public:
     PolyphonicOctaver();
@@ -34,43 +36,44 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    const juce::String& getDetectedNote() { return detectedNote; }
+    juce::String getDetectedNote() const;
 
     float getDetectedPitch() const { return detectedPitch.load(); }
+    float getDetectionConfidence() const { return detectionConfidence.load(); }
+    bool isPitchLocked() const { return getDetectedPitch() > 0.0f && getDetectionConfidence() >= detectionConfidenceThreshold; }
     
     static juce::PluginDescription getPluginDescription();
 private:
+    static constexpr int analysisWindowSize = 1024;
+    static constexpr float minimumDetectedFrequency = 0.0f;
+    static constexpr float maximumDetectedFrequency = 10000.0f;
+    static constexpr float inputLevelThreshold = 0.01f;
+    static constexpr float detectionConfidenceThreshold = 0.65f;
+
     struct InternalState
     {
-        double sampleRate;
-        int blockSize;
+        double sampleRate = 44100.0;
+        int blockSize = 0;
+        int analysisWritePosition = 0;
+        int consecutiveMisses = 0;
+        float smoothedPitchHz = 0.0f;
     } internal;
+
     juce::AudioProcessorValueTreeState parameters;
     std::atomic<float> mixLevel{ 1.0f };
     std::atomic<float> pitchShiftAmount{ -12.0f }; // Default to one octave down
     std::atomic<float> detectedPitch{ 0.0f }; // Store the detected pitch (in hz) for display in the editor
+    std::atomic<float> detectionConfidence{ 0.0f };
+
+    std::vector<float> analysisBuffer;
+    mutable juce::SpinLock detectedStateLock;
     
     juce::String detectedNote{ "N/A" }; // Store the detected note name for display in the editor
 
-    void convertDetectedPitchToNoteName(float pitch, juce::String& noteName)
-    {
-        // Convert the detected pitch (in Hz) to a musical note name
-        // This is a placeholder implementation; you can use a more accurate method if needed
-        static const char* noteNames[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-        int midiNote = static_cast<int>(69 + 12 * std::log2(pitch / 440.0f));
-        int noteIndex = midiNote % 12;
-        int octave = (midiNote / 12) - 1;
-        noteName = juce::String(noteNames[noteIndex]) + juce::String(octave);
-    }
-
-    void detectPitch(const juce::AudioBuffer<float>& buffer) 
-    {
-        // Detect the pitch of the input audio and update the detectedPitch variable
-        // Use simple FFT or autocorrelation methods for pitch detection
-        // For now, we'll just set a placeholder value
-        detectedPitch.store(440.0f); // Placeholder for actual pitch detection logic
-        convertDetectedPitchToNoteName(440.0f, detectedNote);
-    };
+    void convertDetectedPitchToNoteName(float pitch, juce::String& noteName);
+    void pushNextSampleIntoAnalysisBuffer(float sample) noexcept;
+    float detectPitchFromAnalysisBuffer(std::atomic<float>& confidence) const;
+    void setDetectedState(float pitch, float confidence, const juce::String& noteName);
 };
 
 inline juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
