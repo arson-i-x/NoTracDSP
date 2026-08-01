@@ -246,7 +246,7 @@ void MainComponent::resized()
     settingsButton.setBounds(controlPanelArea.removeFromLeft(buttonSize+gapBetweenButtons));
 
     auto sidebarArea = mainArea.removeFromLeft(64);
-    auto sidebarButtonArea = sidebarArea.reduced(10.0f).removeFromTop(64+400).removeFromBottom(64);
+    auto sidebarButtonArea = sidebarArea.reduced(10).removeFromTop(64+400).removeFromBottom(64);
     openPluginListWindowButton.setBounds(sidebarButtonArea);
     if (sidebarOpened)
     {

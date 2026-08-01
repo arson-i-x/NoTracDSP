@@ -25,7 +25,7 @@ bool RemovePluginCommand::undo()
         return false;
     }
 
-    auto restored = controller.restorePluginSnapshot(*removedPlugin);
+    auto restored = controller.addPlugin(*removedPlugin);
     if (!restored.ok)
         return false;
 

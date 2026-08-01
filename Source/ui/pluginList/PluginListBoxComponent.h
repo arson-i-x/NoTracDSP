@@ -4,38 +4,12 @@
 
 #include "scanner/PluginScannerCoordinator.h"
 #include "core/DirectoryManager.h"
-
-class PluginListModel : public juce::ListBoxModel
-{
-public:
-    PluginListModel(const juce::Array<juce::PluginDescription>& pluginList) : 
-        pluginDescriptions(pluginList)
-    {
-    };
-    int getNumRows() override;
-
-    void paintListBoxItem(int rowNumber,
-                          juce::Graphics& g,
-                          int width,
-                          int height,
-                          bool rowIsSelected) override;
-
-    juce::Array<juce::PluginDescription> pluginDescriptions; // Store the plugin descriptions for rendering
-
-    juce::PluginDescription getPluginDescription(int rowNumber) const
-    {
-        jassert(rowNumber >= 0 && rowNumber < pluginDescriptions.size());
-        return pluginDescriptions[rowNumber];
-    }
-
-private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginListModel)
-};
+#include "PluginListModel.h"
 
 class PluginListBoxComponent : public juce::Component
 {
 public:
-    PluginListBoxComponent(juce::KnownPluginList& knownPluginList);
+    explicit PluginListBoxComponent(juce::KnownPluginList& knownPluginList);
     void resized() override;
 
     std::function<void(const juce::PluginDescription&)> onPluginChosen;
@@ -47,8 +21,7 @@ private:
     void refreshPluginList();
 
     juce::KnownPluginList& knownPluginList;
-
-    std::unique_ptr<PluginListModel> model;
+    PluginListModel model;
     juce::ListBox pluginListBox { "Plugin List", nullptr };
 
     DirectoryManager directoryManager;
@@ -67,7 +40,7 @@ private:
 
     juce::ImageButton closeButton;
 
-    PluginScannerCoordinator pluginScanner { knownPluginList };
+    PluginScannerCoordinator pluginScanner;
 
     // State variables for plugin scanning
     juce::File selectedPluginDirectory;

@@ -96,7 +96,6 @@ public:
     // used by backend commands to be able to undo plugin deletions and restorations, and to be able to restore plugin states from snapshots
     const std::vector<juce::AudioProcessorGraph::NodeID> getPluginOrder() const;
     std::unique_ptr<ActivePlugin> getPluginSnapshot(juce::AudioProcessorGraph::NodeID nodeId) const;
-    Result<juce::AudioProcessorGraph::NodeID> restorePluginSnapshot(const ActivePlugin& snapshot);
     juce::String getPluginDisplayName(juce::AudioProcessorGraph::NodeID nodeId) const;
     
     const PresetList<juce::String>& getPresets() const { return presetManager.getPresets(); };
@@ -139,11 +138,6 @@ private:
         juce::AudioProcessorGraph::NodeID dest);
 
     bool isPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId) const;
-
-    const juce::PluginDescription* findPluginByIdentifier(
-        const juce::KnownPluginList& knownPlugins,
-        const juce::String& identifier
-    ) const;
 
     // tries to restore the state of the plugin graph from a snapshot, 
     // returns a Result containing the Status of each loaded plugin, 

@@ -85,26 +85,32 @@ void AppController::rebuildGraphConnections()
     processingEngine.clearConnections();
 
     // if the graph model is empty, just return
-    if (pluginGraphModel.getOrderedNodeIDs().empty())
+    if (pluginGraphModel.getActivePlugins().empty())
         return;
 
     // Rebuild connections based on the plugin graph model
-    const auto& orderedNodeIDs = pluginGraphModel.getOrderedNodeIDs();
+    const auto& orderedPlugins = pluginGraphModel.getActivePlugins();
 
     // Connect the first plugin to the audio input
     auto inputNode = processingEngine.getInputNode()->nodeID;
     auto outputNode = processingEngine.getOutputNode()->nodeID;
-    auto currentPluginNode = orderedNodeIDs.front();
+    auto currentPluginNode = orderedPlugins.front().nodeId;
     connectStereo(inputNode, currentPluginNode);
 
-    for (auto& nodeId : orderedNodeIDs)
+    // start from the second plugin in the ordered list, and connect each plugin to the next one
+    for (int i = 1; i < (int) orderedPlugins.size(); ++i)
     {
-        if (pluginGraphModel.isPluginBypassed(nodeId))
-            continue; // Skip bypassed plugins
+        const auto& plugin = orderedPlugins[i];
 
-        connectStereo(currentPluginNode, nodeId);
+        if (plugin.bypassed)
+        {
+            // If the plugin is bypassed, skip connecting it and connect the previous plugin to the next one
+            continue;
+        }
 
-        currentPluginNode = nodeId;
+        connectStereo(currentPluginNode, plugin.nodeId);
+
+        currentPluginNode = plugin.nodeId;
     }
 
     connectStereo(currentPluginNode, outputNode);
@@ -112,7 +118,7 @@ void AppController::rebuildGraphConnections()
 
 bool AppController::isPluginBypassed(juce::AudioProcessorGraph::NodeID nodeId) const
 {
-    return pluginGraphModel.isPluginBypassed(nodeId);
+    return pluginGraphModel.getActivePlugin(nodeId).bypassed;
 }
 
 void AppController::connectStereo(
@@ -214,8 +220,15 @@ Result<juce::AudioProcessorGraph::NodeID> AppController::addPlugin(
         // add the plugin to the processing engine graph
         auto node = processingEngine.addNode(std::move(plugin));
 
+        if (node == nullptr)
+            return Result<juce::AudioProcessorGraph::NodeID>::failure("Failed to add plugin node to graph.");
+
         // if successful, add the plugin to the plugin graph model for UI representation
-        pluginGraphModel.addPlugin(desc, node->nodeID);
+        if (!pluginGraphModel.addPluginDescription(desc, node->nodeID))
+        {
+            processingEngine.removeNode(node->nodeID);
+            return Result<juce::AudioProcessorGraph::NodeID>::failure("Failed to add plugin to graph model.");
+        }
       
         sendChangeMessage(); // Notify listeners that a new plugin has been added
 
@@ -228,13 +241,13 @@ Result<juce::AudioProcessorGraph::NodeID> AppController::addPlugin(
 Result<juce::AudioProcessorGraph::NodeID> AppController::addPlugin(const ActivePlugin& activePlugin)
 {
     // validate plugin description before attempting to create an instance
-    auto validation = canAddPlugin(*activePlugin.desc);
+    auto validation = canAddPlugin(activePlugin.desc);
     if (!validation.ok)
         return Result<juce::AudioProcessorGraph::NodeID>::failure(validation.error);
 
     // create plugin instance using the plugin registry
     auto plugin = pluginRegistry.createPluginInstance(
-        *activePlugin.desc, 
+        activePlugin.desc,
         ioEngine.getSampleRate(), 
         ioEngine.getBlockSize()
     );
@@ -249,7 +262,11 @@ Result<juce::AudioProcessorGraph::NodeID> AppController::addPlugin(const ActiveP
         return Result<juce::AudioProcessorGraph::NodeID>::failure("Failed to add plugin node to graph.");
 
     // if successful, add the plugin to the plugin graph model for UI representation
-    pluginGraphModel.addPlugin(activePlugin, node->nodeID);
+    if (!pluginGraphModel.addActivePlugin(activePlugin, node->nodeID))
+    {
+        processingEngine.removeNode(node->nodeID);
+        return Result<juce::AudioProcessorGraph::NodeID>::failure("Failed to add plugin to graph model.");
+    }
 
     if (activePlugin.state.has_value())
     {
@@ -366,10 +383,9 @@ juce::ValueTree AppController::createPresetState() const
 
     preset.setProperty("version", 1, nullptr);
     
-    for (const auto& entry : pluginGraphModel.getPluginMap())
+    for (const auto& plugin : pluginGraphModel.getActivePlugins())
     {
-        auto nodeId = entry.first;
-        auto plugin = entry.second; 
+        auto nodeId = plugin.nodeId;
 
         auto node = processingEngine.getNode(nodeId);
 
@@ -387,9 +403,9 @@ juce::ValueTree AppController::createPresetState() const
         juce::ValueTree p("Plugin");
 
         p.setProperty("name", plugin.displayName, nullptr);
-        p.setProperty("identifier", plugin.desc->createIdentifierString(), nullptr);
-        p.setProperty("format", plugin.desc->pluginFormatName, nullptr);
-        p.setProperty("file", plugin.desc->fileOrIdentifier, nullptr);
+        p.setProperty("identifier", plugin.desc.createIdentifierString(), nullptr);
+        p.setProperty("format", plugin.desc.pluginFormatName, nullptr);
+        p.setProperty("file", plugin.desc.fileOrIdentifier, nullptr);
         p.setProperty("bypassed", plugin.bypassed, nullptr);
         p.setProperty("stateBase64", state.toBase64Encoding(), nullptr);
 
@@ -398,19 +414,6 @@ juce::ValueTree AppController::createPresetState() const
 
     preset.addChild(chain, -1, nullptr);
     return preset;
-}
-
-const juce::PluginDescription* AppController::findPluginByIdentifier(
-    const juce::KnownPluginList& knownPlugins,
-    const juce::String& identifier) const
-{
-    for (const auto& desc : knownPlugins.getTypes())
-    {
-        if (desc.createIdentifierString() == identifier)
-            return &desc;
-    }
-
-    return nullptr;
 }
 
 std::map<juce::String, Status> AppController::restorePresetState(const juce::ValueTree& preset)
@@ -433,7 +436,9 @@ std::map<juce::String, Status> AppController::restorePresetState(const juce::Val
 
         const auto identifier = p["identifier"].toString();
 
-        auto desc = findPluginByIdentifier(pluginRegistry.getKnownPluginList(), identifier);
+        auto desc =  pluginRegistry
+                                                    .getKnownPluginList()
+                                                    .getTypeForIdentifierString(identifier);
 
         if (!desc)
         {
@@ -442,7 +447,7 @@ std::map<juce::String, Status> AppController::restorePresetState(const juce::Val
         }
 
         ActivePlugin newPlugin;
-        newPlugin.desc = desc;
+        newPlugin.desc = *desc;
         newPlugin.displayName = p["name"].toString();
         newPlugin.bypassed = (bool) p["bypassed"];
 
@@ -485,7 +490,7 @@ std::unique_ptr<ActivePlugin> AppController::getPluginSnapshot(juce::AudioProces
 {
     auto node = getNodeForId(nodeId);
 
-    auto plugin = pluginGraphModel.getPluginMap().at(nodeId);
+    auto& plugin = pluginGraphModel.getActivePlugin(nodeId);
 
     if (node == nullptr || node->getProcessor() == nullptr)
             return nullptr;
@@ -499,6 +504,7 @@ std::unique_ptr<ActivePlugin> AppController::getPluginSnapshot(juce::AudioProces
                 plugin.displayName,
                 plugin.bypassed,
                 plugin.chainIndex,
+                plugin.nodeId,
                 state
             });
 }
@@ -510,11 +516,6 @@ Status AppController::removePlugin(juce::AudioProcessorGraph::NodeID nodeId)
 
     processingEngine.removeNode(nodeId);
     return Status::success();
-}
-
-Result<juce::AudioProcessorGraph::NodeID> AppController::restorePluginSnapshot(const ActivePlugin& snapshot)
-{
-    return addPlugin(snapshot);
 }
 
 Status AppController::canAddPlugin(const juce::PluginDescription& desc) const
@@ -533,7 +534,13 @@ Status AppController::canAddPlugin(const juce::PluginDescription& desc) const
 
 const std::vector<juce::AudioProcessorGraph::NodeID> AppController::getPluginOrder() const
 {
-    return pluginGraphModel.getOrderedNodeIDs();
+    std::vector<juce::AudioProcessorGraph::NodeID> order;
+    order.reserve(pluginGraphModel.getActivePlugins().size());
+
+    for (const auto& plugin : pluginGraphModel.getActivePlugins())
+        order.push_back(plugin.nodeId);
+
+    return order;
 }
 
 juce::String AppController::getPluginDisplayName(juce::AudioProcessorGraph::NodeID nodeId) const
@@ -558,7 +565,7 @@ juce::AudioProcessorGraph::Node::Ptr AppController::getNodeForId(juce::AudioProc
 
 void AppController::requestTogglePluginBypass(juce::AudioProcessorGraph::NodeID nodeId)
 {
-    const bool bypassed = pluginGraphModel.isPluginBypassed(nodeId);
+    const bool bypassed = pluginGraphModel.getActivePlugin(nodeId).bypassed;
     auto status = setPluginBypassed(nodeId, !bypassed);
     if (!status.ok)
         AppMessageBus::getInstance().error("Failed to bypass plugin", status.error);
@@ -571,7 +578,6 @@ Status AppController::setPluginBypassed(
     try
     {
         pluginGraphModel.setPluginBypassed(nodeId, shouldBypass);
-        rebuildGraphConnections();
         return Status::success();
     }
     catch (const std::exception& e)

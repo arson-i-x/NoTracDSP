@@ -36,8 +36,6 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    juce::String getDetectedNote() const;
-
     float getDetectedPitch() const { return detectedPitch.load(); }
     float getDetectionConfidence() const { return detectionConfidence.load(); }
     bool isPitchLocked() const { return getDetectedPitch() > 0.0f && getDetectionConfidence() >= detectionConfidenceThreshold; }
@@ -45,7 +43,7 @@ public:
     static juce::PluginDescription getPluginDescription();
 private:
     static constexpr int analysisWindowSize = 1024;
-    static constexpr float minimumDetectedFrequency = 0.0f;
+    static constexpr float minimumDetectedFrequency = 1.0f;
     static constexpr float maximumDetectedFrequency = 10000.0f;
     static constexpr float inputLevelThreshold = 0.01f;
     static constexpr float detectionConfidenceThreshold = 0.65f;
@@ -66,14 +64,11 @@ private:
     std::atomic<float> detectionConfidence{ 0.0f };
 
     std::vector<float> analysisBuffer;
-    mutable juce::SpinLock detectedStateLock;
-    
-    juce::String detectedNote{ "N/A" }; // Store the detected note name for display in the editor
 
     void convertDetectedPitchToNoteName(float pitch, juce::String& noteName);
     void pushNextSampleIntoAnalysisBuffer(float sample) noexcept;
-    float detectPitchFromAnalysisBuffer(std::atomic<float>& confidence) const;
-    void setDetectedState(float pitch, float confidence, const juce::String& noteName);
+    float detectPitchFromAnalysisBuffer(float confidence) const;
+    void setDetectedState(float pitch, float confidence);
 };
 
 inline juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

@@ -23,6 +23,7 @@ target_sources (NoTracDSP
         Source/core/AppController.cpp
         Source/core/IOEngine.cpp        
         Source/core/DirectoryManager.cpp
+        Source/core/PluginGraphModel.cpp
         Source/core/PresetManager.cpp
         Source/core/PluginWindow.cpp
 
@@ -43,6 +44,7 @@ target_sources (NoTracDSP
         Source/ui/main/PresetManagerComponent.cpp
 
         Source/ui/pluginList/PluginListBoxComponent.cpp
+        Source/ui/pluginList/PluginListModel.cpp
         Source/ui/pluginList/PluginListWindow.cpp
 
         # scanner source files

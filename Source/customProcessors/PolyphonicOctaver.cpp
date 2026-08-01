@@ -30,7 +30,7 @@ void PolyphonicOctaver::prepareToPlay(double sampleRate, int samplesPerBlock)
     internal.consecutiveMisses = 0;
     internal.smoothedPitchHz = 0.0f;
     analysisBuffer.assign(analysisWindowSize, 0.0f);
-    setDetectedState(0.0f, 0.0f, "N/A");
+    setDetectedState(0.0f, 0.0f);
 
     // Prepare any resources needed for processing
 }
@@ -42,12 +42,6 @@ void PolyphonicOctaver::releaseResources()
     internal.analysisWritePosition = 0;
     internal.consecutiveMisses = 0;
     internal.smoothedPitchHz = 0.0f;
-}
-
-juce::String PolyphonicOctaver::getDetectedNote() const
-{
-    const juce::SpinLock::ScopedLockType lock(detectedStateLock);
-    return detectedNote;
 }
 
 void PolyphonicOctaver::convertDetectedPitchToNoteName(float pitch, juce::String& noteName)
@@ -75,10 +69,8 @@ void PolyphonicOctaver::pushNextSampleIntoAnalysisBuffer(float sample) noexcept
     internal.analysisWritePosition = (internal.analysisWritePosition + 1) % analysisWindowSize;
 }
 
-float PolyphonicOctaver::detectPitchFromAnalysisBuffer(std::atomic<float>& confidence) const
+float PolyphonicOctaver::detectPitchFromAnalysisBuffer(float confidence) const
 {
-    confidence.store(0.0f);
-
     if (analysisBuffer.size() != static_cast<size_t>(analysisWindowSize) || internal.sampleRate <= 0.0)
         return 0.0f;
  
@@ -146,8 +138,7 @@ float PolyphonicOctaver::detectPitchFromAnalysisBuffer(std::atomic<float>& confi
     }
 
     // If the best lag is valid and the confidence is above the threshold, calculate the detected pitch in Hz
-    confidence.store();
-    if (bestLag == 0 || confidence.load() < detectionConfidenceThreshold)
+    if (bestLag == 0 || confidence < detectionConfidenceThreshold)
         return 0.0f;
 
     // Refine the pitch estimate using parabolic interpolation around the best lag
@@ -196,24 +187,23 @@ float PolyphonicOctaver::detectPitchFromAnalysisBuffer(std::atomic<float>& confi
     return static_cast<float>(internal.sampleRate) / static_cast<float>(bestLag);
 }
 
-void PolyphonicOctaver::setDetectedState(float pitch, float confidence, const juce::String& noteName)
+void PolyphonicOctaver::setDetectedState(float pitch, float confidence)
 {
     detectedPitch.store(pitch);
     detectionConfidence.store(confidence);
-
-    const juce::SpinLock::ScopedLockType lock(detectedStateLock);
-    detectedNote = noteName;
 }
 
 void PolyphonicOctaver::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    float confidence = 0.0f;
+
     // Process the audio buffer and MIDI messages
     // Apply pitch shifting and mixing based on parameters
     juce::ignoreUnused(midiMessages);
 
     if (buffer.getNumSamples() <= 0 || buffer.getNumChannels() <= 0)
     {
-        setDetectedState(0.0f, 0.0f, "N/A");
+        setDetectedState(0.0f, confidence);
         return;
     }
 
@@ -221,7 +211,9 @@ void PolyphonicOctaver::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     {
         float monoSample = 0.0f;
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+        {
             monoSample += buffer.getSample(channel, sampleIndex);
+        }
 
         monoSample /= static_cast<float>(buffer.getNumChannels());
         pushNextSampleIntoAnalysisBuffer(monoSample);
@@ -238,7 +230,7 @@ void PolyphonicOctaver::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
 
         juce::String noteName;
         convertDetectedPitchToNoteName(internal.smoothedPitchHz, noteName);
-        setDetectedState(internal.smoothedPitchHz, confidence, noteName);
+        setDetectedState(internal.smoothedPitchHz, confidence);
         return;
     }
 
@@ -246,12 +238,12 @@ void PolyphonicOctaver::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     {
         juce::String noteName;
         convertDetectedPitchToNoteName(internal.smoothedPitchHz, noteName);
-        setDetectedState(internal.smoothedPitchHz, 0.0f, noteName);
+        setDetectedState(internal.smoothedPitchHz, 0.0f);
         return;
     }
 
     internal.smoothedPitchHz = 0.0f;
-    setDetectedState(0.0f, 0.0f, "N/A");
+    setDetectedState(0.0f, 0.0f);
 
     sendChangeMessage(); // Notify listeners that the detected state has changed
 }

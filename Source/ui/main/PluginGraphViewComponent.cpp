@@ -1,5 +1,108 @@
 #include "PluginGraphViewComponent.h"
 
+#include "core/AppController.h"
+
+PluginGraphViewComponent::PluginGraphViewComponent(AppController& app)
+    : model(app.getPluginGraphModel())
+{
+    model.addChangeListener(this);
+    refreshPluginItems();
+}
+
+PluginGraphViewComponent::~PluginGraphViewComponent()
+{
+    model.removeChangeListener(this);
+}
+
+void PluginGraphViewComponent::changeListenerCallback(juce::ChangeBroadcaster* source)
+{
+    if (source == &model)
+        refreshPluginItems();
+}
+
+void PluginGraphViewComponent::refreshPluginItems()
+{
+    getItemsFromModel();
+    layoutItems();
+    repaint();
+}
+
+void PluginGraphViewComponent::getItemsFromModel()
+{
+    items.clear();
+
+    for (const auto& plugin : model.getActivePlugins())
+    {
+        PluginGraphItem item;
+        item.nodeId = plugin.nodeId;
+        item.displayName = plugin.displayName;
+        item.bypassed = plugin.bypassed;
+        item.bounds = { 0, 0, 150, 64 };
+        item.removeButtonBounds = { 0, 0, 20, 20 };
+        items.push_back(item);
+    }
+}
+
+int PluginGraphViewComponent::getItemIndexAt(juce::Point<int> position) const
+{
+    for (int i = 0; i < (int) items.size(); ++i)
+    {
+        if (items[(size_t) i].bounds.contains(position))
+            return i;
+    }
+
+    return -1;
+}
+
+void PluginGraphViewComponent::layoutItems()
+{
+    int x = 40;
+    const int y = 70;
+    const int width = 150;
+    const int height = 64;
+    const int gap = 50;
+
+    for (auto& item : items)
+    {
+        item.bounds = { x, y, width, height };
+        x += width + gap;
+    }
+}
+
+void PluginGraphViewComponent::layoutItemsExceptDragging()
+{
+    int x = 40;
+    const int y = 70;
+    const int width = 150;
+    const int height = 64;
+    const int gap = 50;
+
+    for (int i = 0; i < (int) items.size(); ++i)
+    {
+        if (i != draggingIndex)
+            items[(size_t) i].bounds = { x, y, width, height };
+
+        x += width + gap;
+    }
+}
+
+void PluginGraphViewComponent::sendOrderChanged()
+{
+    if (!onOrderChanged)
+        return;
+
+    for (const auto& item : items)
+        DBG(item.displayName);
+
+    std::vector<juce::AudioProcessorGraph::NodeID> newOrder;
+    newOrder.reserve(items.size());
+
+    for (const auto& item : items)
+        newOrder.push_back(item.nodeId);
+
+    onOrderChanged(newOrder);
+}
+
 int PluginGraphViewComponent::getInsertIndexForX(int x) const
 {
     int insertIndex = 0;
@@ -175,6 +278,11 @@ void PluginGraphViewComponent::mouseDrag(const juce::MouseEvent& event)
     didDrag = true;
 
     auto newPos = event.position.toInt() - dragOffset;
+
+    // if the index is of a deleted plugin, we should not attempt to move it
+    if (draggingIndex < 0 || draggingIndex >= (int) items.size())
+        return;
+
     items[(size_t) draggingIndex].bounds.setPosition(newPos.x, items[(size_t) draggingIndex].bounds.getY());
     repaint();
 }

@@ -1,13 +1,13 @@
 #include "PluginListBoxComponent.h"
 
-PluginListBoxComponent::PluginListBoxComponent(juce::KnownPluginList& knownPluginList)
-            : knownPluginList(knownPluginList)
+PluginListBoxComponent::PluginListBoxComponent(juce::KnownPluginList& list)
+        : knownPluginList(list),
+            model(knownPluginList),
+            pluginScanner(knownPluginList)
 {
-    model = std::make_unique<PluginListModel>(this->knownPluginList.getTypes());
-
     pluginListBox.setMultipleSelectionEnabled(false);
     pluginListBox.setClickingTogglesRowSelection(false);
-    pluginListBox.setModel(model.get());
+        pluginListBox.setModel(&model);
     setVisible(true);
 
     pluginScannerLabel.setText ("Plugin Scanner", juce::dontSendNotification);
@@ -78,7 +78,7 @@ void PluginListBoxComponent::updateScanSettings()
 
 void PluginListBoxComponent::refreshPluginList()
 {
-    model->pluginDescriptions = knownPluginList.getTypes();
+    model.update();
     DBG("Updating plugin list with " + juce::String(knownPluginList.getTypes().size()) + " plugins.");
     pluginListBox.updateContent();
     repaint();
@@ -110,7 +110,7 @@ void PluginListBoxComponent::scanForPlugins() {
 
 void PluginListBoxComponent::resized() {
     auto area = getLocalBounds().reduced (28);
-    auto titleArea = area.removeFromTop (48);
+    area.removeFromTop (48);
     auto rightSide = area.removeFromRight (32);
     auto topRightCorner = rightSide.removeFromTop (32);
     closeButton.setBounds(topRightCorner);
@@ -142,52 +142,18 @@ void PluginListBoxComponent::resized() {
     auto scannedPluginsArea = area.removeFromTop (250);
     pluginListBox.setBounds (scannedPluginsArea);
 
-    pluginListBox.setBounds(scannedPluginsArea);
-
     auto loadArea = area.removeFromTop(32);
     loadPluginButton.setBounds(loadArea.removeFromLeft(160));
 }
 
 void PluginListBoxComponent::choosePlugin() 
 {
-    if (onPluginChosen)
-    {
-        const int selectedRow = pluginListBox.getSelectedRow();
-        if (selectedRow >= 0 && selectedRow < model->getNumRows())
-            onPluginChosen(model->getPluginDescription(selectedRow));
-    }
-}
-  
-int PluginListModel::getNumRows()
-   {
-        return pluginDescriptions.size();
-    }
+    if (!onPluginChosen)
+        return;
 
-void PluginListModel::paintListBoxItem(int rowNumber,
-                                        juce::Graphics& g,
-                                        int width,
-                                        int height,
-                                        bool rowIsSelected)
+    const int selectedRow = pluginListBox.getSelectedRow();
+    if (selectedRow < 0)
+        return;
 
-    {
-        if (rowNumber >= pluginDescriptions.size())
-            return;
-
-        if (rowIsSelected)
-            g.fillAll(juce::Colours::darkgrey);
-
-        g.setColour(juce::Colours::red);
-        
-
-        if (pluginDescriptions[rowNumber].fileOrIdentifier.startsWith("notrac.internal"))
-        { // draw internal plugin name in a different color
-            g.setColour(juce::Colours::lightblue);
-            g.drawText(pluginDescriptions[rowNumber].name, 4, 0, width, height,
-                    juce::Justification::centredLeft);
-        }
-        else {
-            g.setColour(juce::Colours::white);
-            g.drawText(pluginDescriptions[rowNumber].name, 4, 0, width, height,
-                    juce::Justification::centredLeft);
-        }
+    onPluginChosen(model.getPluginDescription(selectedRow));
     }

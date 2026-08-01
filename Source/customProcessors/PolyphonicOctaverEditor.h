@@ -3,6 +3,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "PolyphonicOctaver.h"
+#include "juce_core/juce_core.h"
 #include "juce_events/juce_events.h"
 
 class PolyphonicOctaverEditor : public juce::AudioProcessorEditor,
@@ -34,8 +35,6 @@ public:
         lockStateLabel.setJustificationType(juce::Justification::centred);
         lockStateLabel.setFont(juce::Font{juce::FontOptions(14.0f, juce::Font::plain)});
         addAndMakeVisible(lockStateLabel);
-
-        startTimerHz(15);
     }
 
     ~PolyphonicOctaverEditor() override 
@@ -56,13 +55,25 @@ public:
                 pitch > 0.0f ? "Detected Pitch: " + juce::String(pitch, 2) + " Hz"
                              : "Detected Pitch: N/A",
                 juce::dontSendNotification);
-            detectedNoteLabel.setText("Detected Note: " + audioProcessor.getDetectedNote(), juce::dontSendNotification);
+            detectedNoteLabel.setText("Detected Note: " + getDetectedNote(), juce::dontSendNotification);
             lockStateLabel.setText(
                 audioProcessor.isPitchLocked()
                     ? "Tracking: Locked (confidence " + juce::String(confidence, 2) + ")"
                     : "Tracking: Searching",
                 juce::dontSendNotification);
         }
+    }
+
+    juce::String getDetectedNote() const
+    {
+        const auto pitch = audioProcessor.getDetectedPitch();
+        if (pitch <= 0.0f)
+            return "N/A";
+
+        const auto midiNote = juce::jlimit(0, 127,
+            juce::roundToInt(69.0 + 12.0 * std::log2(pitch / 440.0)));
+
+        return juce::MidiMessage::getMidiNoteName(midiNote, true, true, 3);
     }
 
     void paint(juce::Graphics& g) override

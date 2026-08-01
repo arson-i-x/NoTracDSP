@@ -4,7 +4,7 @@ BypassPluginCommand::BypassPluginCommand(AppController &controller,
                                          const juce::AudioProcessorGraph::NodeID nodeId): controller(controller),
                                                                                          nodeId(nodeId)
 {
-    oldState = controller.getPluginGraphModel().isPluginBypassed(nodeId);
+    oldState = controller.getPluginGraphModel().getActivePlugin(nodeId).bypassed;
     newState = !oldState;
 }
 
